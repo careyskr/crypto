@@ -1,0 +1,20 @@
+{
+  "name": "crypto-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm install && npm run build",
+    "start": "cd backend && node src/server.js",
+    "postinstall": "cd backend && npm install && cd ../frontend && npm install && npm run build",
+    "db:create": "cd backend && npm run db:create"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "dependencies": {
+    "pg": "^8.21.0"
+  }
+}
