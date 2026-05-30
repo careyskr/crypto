@@ -58,17 +58,6 @@ app.get('/api/dbcheck', async (req, res) => {
   }
 });
 
-app.get('/api/envcheck', (req, res) => {
-  res.json({
-    PGHOST: process.env.PGHOST || '(not set)',
-    PGPORT: process.env.PGPORT || '(not set)',
-    PGDATABASE: process.env.PGDATABASE || '(not set)',
-    PGUSER: process.env.PGUSER || '(not set)',
-    PGPASSWORD: process.env.PGPASSWORD ? '***SET***' : '(not set)',
-    JWT_SECRET: process.env.JWT_SECRET ? '***SET***' : '(not set)',
-  });
-});
-
 app.use('/api/auth', authRouter);
 app.use('/api/user', userRouter);
 app.use('/api/binance', binanceRouter);
