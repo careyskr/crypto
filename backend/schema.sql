@@ -80,6 +80,78 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS accounts (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100) DEFAULT 'Paper Account',
+  balance DECIMAL(20,2) DEFAULT 10000.00,
+  initial_balance DECIMAL(20,2) DEFAULT 10000.00,
+  total_pnl DECIMAL(20,8) DEFAULT 0,
+  win_count INTEGER DEFAULT 0,
+  loss_count INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO accounts (id, name, balance, initial_balance)
+VALUES (1, 'Paper Account', 10000.00, 10000.00)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS trades (
+  id SERIAL PRIMARY KEY,
+  account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE DEFAULT 1,
+  symbol VARCHAR(20) NOT NULL,
+  side VARCHAR(10) NOT NULL,
+  type VARCHAR(20) DEFAULT 'market',
+  entry_price DECIMAL(20,8),
+  current_price DECIMAL(20,8),
+  quantity DECIMAL(20,8),
+  leverage DECIMAL(4,1) DEFAULT 1.0,
+  stop_loss DECIMAL(20,8),
+  take_profit_1 DECIMAL(20,8),
+  take_profit_2 DECIMAL(20,8),
+  take_profit_3 DECIMAL(20,8),
+  trailing_stop DECIMAL(5,2),
+  trailing_stop_activated BOOLEAN DEFAULT false,
+  highest_price DECIMAL(20,8),
+  lowest_price DECIMAL(20,8),
+  status VARCHAR(20) DEFAULT 'open',
+  reason VARCHAR(50),
+  fee DECIMAL(20,8) DEFAULT 0,
+  pnl DECIMAL(20,8) DEFAULT 0,
+  pnl_percent DECIMAL(10,4) DEFAULT 0,
+  exit_price DECIMAL(20,8),
+  signal_id INTEGER,
+  closed_at TIMESTAMPTZ,
+  executed_at TIMESTAMPTZ,
+  opened_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS signals (
+  id SERIAL PRIMARY KEY,
+  coin VARCHAR(20) NOT NULL,
+  signal_type VARCHAR(20) NOT NULL,
+  market_type VARCHAR(20),
+  entry_min DECIMAL(20,8),
+  entry_max DECIMAL(20,8),
+  stop_loss DECIMAL(20,8),
+  tp1 DECIMAL(20,8),
+  tp2 DECIMAL(20,8),
+  tp3 DECIMAL(20,8),
+  confidence DECIMAL(5,2),
+  reasoning TEXT,
+  status VARCHAR(20) DEFAULT 'active',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS whale_alerts (
+  id SERIAL PRIMARY KEY,
+  symbol VARCHAR(20) NOT NULL,
+  amount DECIMAL(30,8),
+  usd_value DECIMAL(30,2),
+  exchange VARCHAR(50),
+  type VARCHAR(20),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN

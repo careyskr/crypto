@@ -2,11 +2,12 @@ import pkg from 'pg';
 const { Pool } = pkg;
 
 const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME || 'crypto_ai',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
+  host: process.env.PGHOST || process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.PGPORT || process.env.DB_PORT || '5432'),
+  database: process.env.PGDATABASE || process.env.DB_NAME || 'crypto_ai',
+  user: process.env.PGUSER || process.env.DB_USER || 'postgres',
+  password: process.env.PGPASSWORD || process.env.DB_PASSWORD || 'postgres',
+  ssl: process.env.PGHOST ? { rejectUnauthorized: false } : false,
 });
 
 pool.on('error', (err) => {

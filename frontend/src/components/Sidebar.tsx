@@ -48,12 +48,12 @@ export function Sidebar() {
           });
           setTickers(Array.from(tickerMapRef.current.values()));
         }
-      }, exchange);
+      });
       unsubs.push(unsub);
     });
 
     return () => { unsubs.forEach(u => u()); };
-  }, [tickers.length, exchange, subscribeTicker]);
+  }, [tickers.length, subscribeTicker]);
 
   const filtered = tickers
     .filter((t) => {

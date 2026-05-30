@@ -1,104 +1,115 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, '../../data');
-const DB_FILE = path.join(DATA_DIR, 'db.json');
-
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-
-const DEFAULT_DB = {
-  accounts: [{ id: 1, name: 'Paper Account', balance: 10000, initial_balance: 10000, total_pnl: 0, win_count: 0, loss_count: 0, created_at: new Date().toISOString() }],
-  trades: [],
-  signals: [],
-  whale_alerts: [],
-};
-
-function loadDB() {
-  try {
-    if (fs.existsSync(DB_FILE)) {
-      return JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
-    }
-  } catch {}
-  return { ...DEFAULT_DB };
-}
-
-function saveDB(db) {
-  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
-}
-
-let db = loadDB();
-
-// Auto-save every 10 seconds
-setInterval(() => saveDB(db), 10000);
+import pool from '../db.js';
 
 const dbInterface = {
-  getAccount() { return db.accounts.find(a => a.id === 1); },
-
-  updateAccount(fields) {
-    const acc = db.accounts.find(a => a.id === 1);
-    Object.assign(acc, fields);
-    saveDB(db);
-    return acc;
-  },
-
-  addTrade(trade) {
-    trade.id = db.trades.length + 1;
-    trade.opened_at = new Date().toISOString();
-    if (!trade.status) trade.status = 'open';
-    db.trades.push(trade);
-    saveDB(db);
-    return trade;
-  },
-
-  getTrade(id) { return db.trades.find(t => t.id === id); },
-
-  getOpenTrades() { return db.trades.filter(t => t.status === 'open').reverse(); },
-
-  getPendingOrders() { return db.trades.filter(t => t.status === 'pending').reverse(); },
-
-  getCancelledOrders() { return db.trades.filter(t => t.status === 'cancelled').reverse(); },
-
-  getClosedTrades(limit = 50) {
-    return db.trades.filter(t => t.status === 'closed').slice(-limit).reverse();
-  },
-
-  getAllTrades(limit = 100) { return db.trades.slice(-limit).reverse(); },
-
-  updateTrade(id, fields) {
-    const trade = db.trades.find(t => t.id === id);
-    if (trade) Object.assign(trade, fields);
-    saveDB(db);
-    return trade;
-  },
-
-  getTradesBySymbol(symbol) {
-    return db.trades.filter(t => t.symbol === symbol);
-  },
-
-  resetAccount(balance = 10000) {
-    const acc = db.accounts.find(a => a.id === 1);
-    acc.balance = balance;
-    acc.initial_balance = balance;
-    acc.total_pnl = 0;
-    acc.win_count = 0;
-    acc.loss_count = 0;
-
-    // Close all open trades without PnL impact, but preserve history
-    for (const t of db.trades) {
-      if (t.status === 'open') {
-        t.status = 'closed';
-        t.exit_price = t.entry_price;
-        t.pnl = 0;
-        t.pnl_percent = 0;
-        t.closed_at = new Date().toISOString();
-        t.reason = 'account_reset';
-      }
+  async getAccount() {
+    const { rows } = await pool.query('SELECT * FROM accounts WHERE id = 1');
+    if (rows.length === 0) {
+      const { rows: inserted } = await pool.query(
+        `INSERT INTO accounts (id, name, balance, initial_balance)
+         VALUES (1, 'Paper Account', 10000, 10000) RETURNING *`
+      );
+      return inserted[0];
     }
+    return rows[0];
+  },
 
-    saveDB(db);
-    return acc;
+  async updateAccount(fields) {
+    const keys = Object.keys(fields);
+    const setStr = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
+    const values = keys.map(k => fields[k]);
+    const { rows } = await pool.query(
+      `UPDATE accounts SET ${setStr} WHERE id = $1 RETURNING *`,
+      [1, ...values]
+    );
+    return rows[0];
+  },
+
+  async addTrade(trade) {
+    const keys = ['account_id', 'symbol', 'side', 'type', 'entry_price', 'current_price', 'quantity', 'leverage', 'stop_loss', 'take_profit_1', 'take_profit_2', 'take_profit_3', 'trailing_stop', 'trailing_stop_activated', 'highest_price', 'lowest_price', 'status', 'reason', 'fee', 'pnl', 'pnl_percent', 'exit_price', 'signal_id'];
+    const cols = keys.filter(k => trade[k] !== undefined);
+    const vals = cols.map(k => trade[k]);
+    const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
+    const { rows } = await pool.query(
+      `INSERT INTO trades (${cols.join(', ')}) VALUES (${placeholders}) RETURNING *`,
+      vals
+    );
+    return rows[0];
+  },
+
+  async getTrade(id) {
+    const { rows } = await pool.query('SELECT * FROM trades WHERE id = $1', [id]);
+    return rows[0] || null;
+  },
+
+  async getOpenTrades() {
+    const { rows } = await pool.query(
+      "SELECT * FROM trades WHERE status = 'open' ORDER BY id DESC"
+    );
+    return rows;
+  },
+
+  async getPendingOrders() {
+    const { rows } = await pool.query(
+      "SELECT * FROM trades WHERE status = 'pending' ORDER BY id DESC"
+    );
+    return rows;
+  },
+
+  async getCancelledOrders() {
+    const { rows } = await pool.query(
+      "SELECT * FROM trades WHERE status = 'cancelled' ORDER BY id DESC"
+    );
+    return rows;
+  },
+
+  async getClosedTrades(limit = 50) {
+    const { rows } = await pool.query(
+      "SELECT * FROM trades WHERE status = 'closed' ORDER BY id DESC LIMIT $1",
+      [limit]
+    );
+    return rows;
+  },
+
+  async getAllTrades(limit = 100) {
+    const { rows } = await pool.query(
+      'SELECT * FROM trades ORDER BY id DESC LIMIT $1',
+      [limit]
+    );
+    return rows;
+  },
+
+  async updateTrade(id, fields) {
+    const keys = Object.keys(fields);
+    if (keys.length === 0) return this.getTrade(id);
+    const setStr = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
+    const values = keys.map(k => fields[k]);
+    const { rows } = await pool.query(
+      `UPDATE trades SET ${setStr} WHERE id = $1 RETURNING *`,
+      [id, ...values]
+    );
+    return rows[0];
+  },
+
+  async getTradesBySymbol(symbol) {
+    const { rows } = await pool.query(
+      'SELECT * FROM trades WHERE symbol = $1',
+      [symbol]
+    );
+    return rows;
+  },
+
+  async resetAccount(balance = 10000) {
+    const { rows: old } = await pool.query('SELECT * FROM accounts WHERE id = 1');
+    const acc = old[0];
+    await pool.query(
+      `UPDATE accounts SET balance = $1, initial_balance = $1, total_pnl = 0, win_count = 0, loss_count = 0 WHERE id = 1`,
+      [balance]
+    );
+    await pool.query(
+      `UPDATE trades SET status = 'closed', exit_price = entry_price, pnl = 0, pnl_percent = 0, closed_at = NOW(), reason = 'account_reset' WHERE status = 'open'`
+    );
+    const { rows: updated } = await pool.query('SELECT * FROM accounts WHERE id = 1');
+    return updated[0];
   },
 };
 

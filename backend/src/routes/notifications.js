@@ -108,7 +108,7 @@ router.put('/settings', authenticateToken, async (req, res) => {
   }
 });
 
-export async function createNotification(io, userId, { title, message, type = 'system', priority = 'normal', tradeId = null, signalId = null }) {
+export async function createNotification(userId, { title, message, type = 'system', priority = 'normal', tradeId = null, signalId = null }) {
   try {
     const result = await pool.query(
       `INSERT INTO notifications (user_id, title, message, notification_type, priority, related_trade_id, related_signal_id)
@@ -116,23 +116,18 @@ export async function createNotification(io, userId, { title, message, type = 's
        RETURNING *`,
       [userId, title, message, type, priority, tradeId, signalId]
     );
-    const notification = result.rows[0];
-    if (io) {
-      io.to(`user:${userId}`).emit('notification', notification);
-      io.to(`user:${userId}`).emit('notification-count', { count: 1 });
-    }
-    return notification;
+    return result.rows[0];
   } catch (err) {
     console.error('Create notification error:', err);
     return null;
   }
 }
 
-export async function createNotificationForAll(io, { title, message, type = 'system', priority = 'normal' }) {
+export async function createNotificationForAll({ title, message, type = 'system', priority = 'normal' }) {
   try {
     const users = await pool.query('SELECT id FROM users');
     for (const user of users.rows) {
-      await createNotification(io, user.id, { title, message, type, priority });
+      await createNotification(user.id, { title, message, type, priority });
     }
   } catch (err) {
     console.error('Broadcast notification error:', err);

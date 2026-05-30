@@ -12,3 +12,10 @@ services:
         value: "20"
       - key: OPENROUTER_API_KEY
         sync: false
+      - key: JWT_SECRET
+        generateValue: true
+
+databases:
+  - name: crypto-dashboard-db
+    plan: free
+    region: oregon

@@ -7,11 +7,12 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const schemaPath = path.join(__dirname, '..', 'schema.sql');
 
-const DB_NAME = process.env.DB_NAME || 'crypto_ai';
-const DB_USER = process.env.DB_USER || 'postgres';
-const DB_PASSWORD = process.env.DB_PASSWORD || 'postgres';
-const DB_HOST = process.env.DB_HOST || 'localhost';
-const DB_PORT = parseInt(process.env.DB_PORT || '5432');
+const DB_NAME = process.env.PGDATABASE || process.env.DB_NAME || 'crypto_ai';
+const DB_USER = process.env.PGUSER || process.env.DB_USER || 'postgres';
+const DB_PASSWORD = process.env.PGPASSWORD || process.env.DB_PASSWORD || 'postgres';
+const DB_HOST = process.env.PGHOST || process.env.DB_HOST || 'localhost';
+const DB_PORT = parseInt(process.env.PGPORT || process.env.DB_PORT || '5432');
+const SSL = process.env.PGHOST ? { rejectUnauthorized: false } : false;
 
 async function initDb() {
   const adminClient = new Client({
@@ -20,6 +21,7 @@ async function initDb() {
     user: DB_USER,
     password: DB_PASSWORD,
     database: 'postgres',
+    ssl: SSL,
   });
 
   try {
@@ -43,6 +45,7 @@ async function initDb() {
     user: DB_USER,
     password: DB_PASSWORD,
     database: DB_NAME,
+    ssl: SSL,
   });
 
   try {

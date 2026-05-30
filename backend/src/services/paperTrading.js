@@ -49,13 +49,13 @@ function computeSlDistance(trade, currentPrice) {
 }
 
 export class PaperTradingService {
-  getAccount() { return db.getAccount(); }
+  async getAccount() { return db.getAccount(); }
 
-  resetAccount(balance = 10000) {
+  async resetAccount(balance = 10000) {
     return db.resetAccount(balance);
   }
 
-  openTrade({ symbol, side, entryPrice, quantity, leverage = 1, stopLoss, tp1, tp2, tp3, signalId, reason, orderType = 'market' }) {
+  async openTrade({ symbol, side, entryPrice, quantity, leverage = 1, stopLoss, tp1, tp2, tp3, signalId, reason, orderType = 'market' }) {
     const isPending = orderType !== 'market';
 
     if (stopLoss !== undefined && stopLoss !== null) {
@@ -76,12 +76,12 @@ export class PaperTradingService {
     }
 
     if (!isPending) {
-      const account = db.getAccount();
+      const account = await db.getAccount();
       const fee = entryPrice * quantity * 0.001;
       const margin = (entryPrice * quantity) / leverage;
       if (margin + fee > account.balance) throw new Error('Insufficient balance');
 
-      const trade = db.addTrade({
+      const trade = await db.addTrade({
         account_id: 1, symbol, side, type: 'market',
         entry_price: entryPrice, quantity, leverage,
         stop_loss: stopLoss || null, take_profit_1: tp1 || null,
@@ -93,12 +93,11 @@ export class PaperTradingService {
         pnl: 0, pnl_percent: 0, exit_price: null,
       });
 
-      db.updateAccount({ balance: account.balance - margin - fee });
+      await db.updateAccount({ balance: account.balance - margin - fee });
       return trade;
     }
 
-    // Pending order (limit/stop) — no balance deduction, no PnL tracking
-    const trade = db.addTrade({
+    const trade = await db.addTrade({
       account_id: 1, symbol, side, type: orderType,
       entry_price: entryPrice, quantity, leverage,
       stop_loss: stopLoss || null, take_profit_1: tp1 || null,
@@ -114,12 +113,12 @@ export class PaperTradingService {
     return trade;
   }
 
-  executePendingOrder(tradeId, currentPrice) {
-    const trade = db.getTrade(tradeId);
+  async executePendingOrder(tradeId, currentPrice) {
+    const trade = await db.getTrade(tradeId);
     if (!trade || trade.status !== 'pending') throw new Error('Order not found or already executed');
 
     const price = parseFloat(currentPrice);
-    const account = db.getAccount();
+    const account = await db.getAccount();
     const fee = price * trade.quantity * 0.001;
     const margin = (price * trade.quantity) / trade.leverage;
 
@@ -127,7 +126,7 @@ export class PaperTradingService {
 
     console.log(`[ORDER EXECUTED] ${trade.symbol} ${trade.side} ${trade.type} at ${price} (was pending entry ${trade.entry_price})`);
 
-    db.updateTrade(tradeId, {
+    await db.updateTrade(tradeId, {
       entry_price: price,
       current_price: price,
       highest_price: price,
@@ -138,19 +137,19 @@ export class PaperTradingService {
       executed_at: new Date().toISOString(),
     });
 
-    db.updateAccount({ balance: account.balance - margin - fee });
+    await db.updateAccount({ balance: account.balance - margin - fee });
     return db.getTrade(tradeId);
   }
 
-  cancelPendingOrder(tradeId) {
-    const trade = db.getTrade(tradeId);
+  async cancelPendingOrder(tradeId) {
+    const trade = await db.getTrade(tradeId);
     if (!trade || trade.status !== 'pending') throw new Error('Order not found or already executed');
-    db.updateTrade(tradeId, { status: 'cancelled', closed_at: new Date().toISOString(), reason: 'cancelled' });
+    await db.updateTrade(tradeId, { status: 'cancelled', closed_at: new Date().toISOString(), reason: 'cancelled' });
     return db.getTrade(tradeId);
   }
 
-  modifyPendingOrder(tradeId, updates) {
-    const trade = db.getTrade(tradeId);
+  async modifyPendingOrder(tradeId, updates) {
+    const trade = await db.getTrade(tradeId);
     if (!trade || trade.status !== 'pending') throw new Error('Order not found or already executed');
 
     const allowed = {};
@@ -161,26 +160,24 @@ export class PaperTradingService {
     if (updates.tp3 !== undefined) allowed.take_profit_3 = updates.tp3;
     if (updates.quantity !== undefined) allowed.quantity = updates.quantity;
 
-    db.updateTrade(tradeId, allowed);
+    await db.updateTrade(tradeId, allowed);
     return db.getTrade(tradeId);
   }
 
   async checkPendingOrders(priceCache) {
-    const pendingOrders = db.getPendingOrders();
+    const pendingOrders = await db.getPendingOrders();
     const executed = [];
 
     for (const order of pendingOrders) {
-      let raw = priceCache[order.symbol];
+      let raw = priceCache?.[order.symbol];
 
-      // If price missing, try to fetch it live from Binance
       if (raw === undefined || raw === null) {
         try {
           const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${order.symbol}`);
           if (res.ok) {
             const p = await res.json();
             if (p.symbol && p.price) {
-              priceCache[p.symbol] = parseFloat(p.price);
-              raw = priceCache[order.symbol];
+              raw = parseFloat(p.price);
             }
           }
         } catch {}
@@ -215,10 +212,10 @@ export class PaperTradingService {
     return executed;
   }
 
-  getPendingOrders() { return db.getPendingOrders(); }
+  async getPendingOrders() { return db.getPendingOrders(); }
 
-  closeTrade(tradeId, exitPrice, reason = 'manual') {
-    const trade = db.getTrade(tradeId);
+  async closeTrade(tradeId, exitPrice, reason = 'manual') {
+    const trade = await db.getTrade(tradeId);
     if (!trade || trade.status !== 'open') throw new Error('Trade not found or already closed');
 
     const grossPnl = +calcPnL(trade, exitPrice, false).toFixed(2);
@@ -228,15 +225,15 @@ export class PaperTradingService {
     const margin = (trade.entry_price * trade.quantity) / trade.leverage;
     const pnlPercent = margin > 0 ? +((netPnl / margin) * 100).toFixed(2) : 0;
     const isWin = netPnl > 0;
-    const account = db.getAccount();
+    const account = await db.getAccount();
 
-    db.updateTrade(tradeId, {
+    await db.updateTrade(tradeId, {
       exit_price: exitPrice, pnl: netPnl, pnl_percent: pnlPercent,
       fee: totalFees, status: 'closed',
       closed_at: new Date().toISOString(), reason,
     });
 
-    db.updateAccount({
+    await db.updateAccount({
       balance: +((account.balance + margin + netPnl).toFixed(2)),
       total_pnl: +((account.total_pnl + netPnl).toFixed(2)),
       win_count: account.win_count + (isWin ? 1 : 0),
@@ -246,8 +243,8 @@ export class PaperTradingService {
     return db.getTrade(tradeId);
   }
 
-  modifyTrade(tradeId, updates) {
-    const trade = db.getTrade(tradeId);
+  async modifyTrade(tradeId, updates) {
+    const trade = await db.getTrade(tradeId);
     if (!trade || trade.status !== 'open') throw new Error('Trade not found or already closed');
 
     const allowed = {};
@@ -282,12 +279,12 @@ export class PaperTradingService {
       if (trade.side === 'short' && allowed.take_profit_3 > trade.entry_price) throw new Error('Take profit 3 must be below entry price for short trades');
     }
 
-    db.updateTrade(tradeId, allowed);
+    await db.updateTrade(tradeId, allowed);
     return db.getTrade(tradeId);
   }
 
-  partialClose(tradeId, percentage) {
-    const trade = db.getTrade(tradeId);
+  async partialClose(tradeId, percentage) {
+    const trade = await db.getTrade(tradeId);
     if (!trade || trade.status !== 'open') throw new Error('Trade not found or already closed');
     const pct = parseFloat(percentage) / 100;
     if (pct <= 0 || pct > 1) throw new Error('Invalid percentage');
@@ -302,9 +299,9 @@ export class PaperTradingService {
     const margin = (trade.entry_price * trade.quantity) / trade.leverage;
     const proportionalMargin = +(margin * pct).toFixed(2);
     const isWin = proportionalNetPnl > 0;
-    const account = db.getAccount();
+    const account = await db.getAccount();
 
-    db.addTrade({
+    await db.addTrade({
       account_id: 1, symbol: trade.symbol, side: trade.side, type: 'market',
       entry_price: trade.entry_price, quantity: closeQty, leverage: trade.leverage,
       stop_loss: null, take_profit_1: null, take_profit_2: null, take_profit_3: null,
@@ -321,25 +318,25 @@ export class PaperTradingService {
 
     if (remainingQty > 0) {
       const remainingFee = +(trade.fee * (1 - pct)).toFixed(2);
-      db.updateTrade(tradeId, {
+      await db.updateTrade(tradeId, {
         quantity: +remainingQty.toFixed(8),
         fee: remainingFee,
       });
     } else {
-      db.updateTrade(tradeId, {
+      await db.updateTrade(tradeId, {
         exit_price: trade.current_price, pnl: proportionalNetPnl, status: 'closed',
         closed_at: new Date().toISOString(), reason: 'partial_close_full',
       });
     }
 
-    db.updateAccount({
+    await db.updateAccount({
       balance: +((account.balance + proportionalMargin + proportionalNetPnl).toFixed(2)),
       total_pnl: +((account.total_pnl + proportionalNetPnl).toFixed(2)),
       win_count: account.win_count + (isWin ? 1 : 0),
       loss_count: account.loss_count + (isWin ? 0 : 1),
     });
 
-    return { remaining: remainingQty > 0 ? db.getTrade(tradeId) : null, closed: null };
+    return { remaining: remainingQty > 0 ? await db.getTrade(tradeId) : null, closed: null };
   }
 
   getLiveTradeData(trade, currentPrice) {
@@ -359,15 +356,15 @@ export class PaperTradingService {
     };
   }
 
-  checkStopLossAndTakeProfit(symbol, currentPrice) {
-    const openTrades = db.getOpenTrades().filter(t => t.symbol === symbol);
+  async checkStopLossAndTakeProfit(symbol, currentPrice) {
+    const openTrades = (await db.getOpenTrades()).filter(t => t.symbol === symbol);
     for (const trade of openTrades) {
       if (trade.stop_loss) {
         if (trade.side === 'long' && currentPrice <= trade.stop_loss) {
-          this.closeTrade(trade.id, trade.stop_loss, 'stop_loss'); continue;
+          await this.closeTrade(trade.id, trade.stop_loss, 'stop_loss'); continue;
         }
         if (trade.side === 'short' && currentPrice >= trade.stop_loss) {
-          this.closeTrade(trade.id, trade.stop_loss, 'stop_loss'); continue;
+          await this.closeTrade(trade.id, trade.stop_loss, 'stop_loss'); continue;
         }
       }
       for (const [tp, label] of [
@@ -375,45 +372,45 @@ export class PaperTradingService {
       ]) {
         if (!tp) continue;
         if (trade.side === 'long' && currentPrice >= tp) {
-          this.closeTrade(trade.id, tp, `${label}_hit`); break;
+          await this.closeTrade(trade.id, tp, `${label}_hit`); break;
         }
         if (trade.side === 'short' && currentPrice <= tp) {
-          this.closeTrade(trade.id, tp, `${label}_hit`); break;
+          await this.closeTrade(trade.id, tp, `${label}_hit`); break;
         }
       }
     }
   }
 
-  checkTrailingStops(currentPrice, trade) {
+  async checkTrailingStops(currentPrice, trade) {
     if (!trade.trailing_stop) return;
     if (trade.side === 'long') {
       if (currentPrice > trade.highest_price) {
-        db.updateTrade(trade.id, { highest_price: currentPrice });
+        await db.updateTrade(trade.id, { highest_price: currentPrice });
       }
       const newSl = trade.highest_price * (1 - trade.trailing_stop / 100);
       if (trade.stop_loss === null || newSl > trade.stop_loss) {
-        db.updateTrade(trade.id, { stop_loss: +newSl.toFixed(2), trailing_stop_activated: true });
+        await db.updateTrade(trade.id, { stop_loss: +newSl.toFixed(2), trailing_stop_activated: true });
       }
     } else {
       if (currentPrice < trade.lowest_price) {
-        db.updateTrade(trade.id, { lowest_price: currentPrice });
+        await db.updateTrade(trade.id, { lowest_price: currentPrice });
       }
       const newSl = trade.lowest_price * (1 + trade.trailing_stop / 100);
       if (trade.stop_loss === null || newSl < trade.stop_loss) {
-        db.updateTrade(trade.id, { stop_loss: +newSl.toFixed(2), trailing_stop_activated: true });
+        await db.updateTrade(trade.id, { stop_loss: +newSl.toFixed(2), trailing_stop_activated: true });
       }
     }
   }
 
-  checkLiquidation(trade, currentPrice) {
+  async checkLiquidation(trade, currentPrice) {
     const liqPrice = calcLiquidationPrice(trade.entry_price, trade.leverage, trade.side);
     if (!liqPrice) return false;
     if (trade.side === 'long' && currentPrice <= liqPrice) {
-      this.closeTrade(trade.id, liqPrice, 'liquidation');
+      await this.closeTrade(trade.id, liqPrice, 'liquidation');
       return true;
     }
     if (trade.side === 'short' && currentPrice >= liqPrice) {
-      this.closeTrade(trade.id, liqPrice, 'liquidation');
+      await this.closeTrade(trade.id, liqPrice, 'liquidation');
       return true;
     }
     return false;
@@ -434,7 +431,6 @@ export class PaperTradingService {
       : null;
     const hoursSinceOpen = trade.opened_at ? (Date.now() - new Date(trade.opened_at).getTime()) / 3600000 : 0;
 
-    // Profit-taking suggestions
     if (upnlPercent > 5 && upnlPercent < 10 && !hasTrail) {
       suggestions.push({ type: 'info', text: 'Move SL to breakeven to lock in gains' });
     }
@@ -447,8 +443,6 @@ export class PaperTradingService {
     if (upnlPercent > 2 && tpProgress > 80 && !hasTrail) {
       suggestions.push({ type: 'take_profit', text: `Near TP (${tpProgress.toFixed(0)}%) — consider trailing stop to extend gains` });
     }
-
-    // Loss management
     if (upnlPercent < -2 && upnlPercent >= -8 && hasSL && slDist !== null && slDist < 2) {
       suggestions.push({ type: 'warning', text: `SL close (${slDist.toFixed(1)}%) — monitor or widen` });
     }
@@ -461,8 +455,6 @@ export class PaperTradingService {
     if (upnlPercent < -2 && entryToLiq !== null && entryToLiq < 5) {
       suggestions.push({ type: 'danger', text: `Liquidation close (${entryToLiq.toFixed(1)}%) — reduce leverage or add margin` });
     }
-
-    // General SL/TP checks
     if (!hasSL) {
       suggestions.push({ type: 'danger', text: 'No stop loss — set one to manage risk' });
     }
@@ -472,23 +464,15 @@ export class PaperTradingService {
     if (slDist !== null && slDist > 15) {
       suggestions.push({ type: 'info', text: `SL distant (${slDist.toFixed(1)}%) — consider tightening` });
     }
-
-    // Trailing stop
     if (!hasTrail && upnlPercent > 5) {
       suggestions.push({ type: 'info', text: `Enable trailing stop to protect profits (${upnlPercent.toFixed(0)}% up)` });
     }
-
-    // No setup
     if (!hasSL && !hasTP) {
       suggestions.push({ type: 'warning', text: 'No SL or TP set — define your risk/reward' });
     }
-
-    // Time-based: position open long with minimal movement
     if (hoursSinceOpen > 4 && Math.abs(upnlPercent) < 2) {
       suggestions.push({ type: 'info', text: `Position open ${hoursSinceOpen.toFixed(0)}h with little movement — price may be range-bound` });
     }
-
-    // Steady state (always show at least one suggestion)
     if (suggestions.length === 0) {
       if (hasSL && hasTP) {
         suggestions.push({ type: 'info', text: `Holding — SL $${trade.stop_loss}, TP $${trade.take_profit_1}` });
@@ -504,12 +488,12 @@ export class PaperTradingService {
     return suggestions;
   }
 
-  getOpenTrades() {
-    return db.getOpenTrades().filter(t => t.entry_price != null && t.quantity != null);
+  async getOpenTrades() {
+    return (await db.getOpenTrades()).filter(t => t.entry_price != null && t.quantity != null);
   }
-  getClosedTrades(limit) { return db.getClosedTrades(limit); }
-  getAllTrades(limit) { return db.getAllTrades(limit); }
-  getTrade(id) { return db.getTrade(id); }
+  async getClosedTrades(limit) { return db.getClosedTrades(limit); }
+  async getAllTrades(limit) { return db.getAllTrades(limit); }
+  async getTrade(id) { return db.getTrade(id); }
 
   getLiveOrderData(order, currentPrice) {
     return {
@@ -531,9 +515,9 @@ export class PaperTradingService {
     };
   }
 
-  getStats() {
-    const account = db.getAccount();
-    const trades = db.getClosedTrades(1000);
+  async getStats() {
+    const account = await db.getAccount();
+    const trades = await db.getClosedTrades(1000);
     const wins = trades.filter(t => t.pnl > 0);
     const losses = trades.filter(t => t.pnl <= 0);
     const totalPnl = trades.reduce((s, t) => s + t.pnl, 0);
@@ -571,8 +555,8 @@ export class PaperTradingService {
       maxWinStreak, maxLossStreak,
       roi: account.initial_balance > 0 ? ((account.total_pnl / account.initial_balance) * 100).toFixed(2) : 0,
       equityCurve, dailyPnl,
-      openTradesCount: db.getOpenTrades().length,
-      pendingOrdersCount: db.getPendingOrders().length,
+      openTradesCount: (await db.getOpenTrades()).length,
+      pendingOrdersCount: (await db.getPendingOrders()).length,
     };
   }
 }

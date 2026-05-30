@@ -52,11 +52,11 @@ export function MarketMovers() {
           });
           setTickers(prev => prev.map(t => t.symbol === data.symbol ? { ...t, lastPrice: data.lastPrice, priceChange: data.priceChange, priceChangePercent: data.priceChangePercent } : t));
         }
-      }, exchange);
+      });
       unsubs.push(unsub);
     });
     return () => { unsubs.forEach(u => u()); };
-  }, [tickers.length, exchange, subscribeTicker]);
+  }, [tickers.length, subscribeTicker]);
 
   const filtered = useMemo(() => {
     const MIN_VOLUME = 500000;

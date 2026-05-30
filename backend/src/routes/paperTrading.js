@@ -1,22 +1,21 @@
 import { Router } from 'express';
 import { PaperTradingService } from '../services/paperTrading.js';
 import { getTradeAdvice } from '../services/aiExplainer.js';
-import { priceCache } from '../services/priceCache.js';
 
 export const paperTradingRouter = Router();
 const pts = new PaperTradingService();
 
-paperTradingRouter.get('/account', (req, res) => {
-  try { res.json(pts.getAccount()); } catch (err) { res.status(500).json({ error: err.message }); }
+paperTradingRouter.get('/account', async (req, res) => {
+  try { res.json(await pts.getAccount()); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-paperTradingRouter.get('/stats', (req, res) => {
-  try { res.json(pts.getStats()); } catch (err) { res.status(500).json({ error: err.message }); }
+paperTradingRouter.get('/stats', async (req, res) => {
+  try { res.json(await pts.getStats()); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-paperTradingRouter.get('/trades/open', (req, res) => {
+paperTradingRouter.get('/trades/open', async (req, res) => {
   try {
-    const trades = pts.getOpenTrades();
+    const trades = await pts.getOpenTrades();
     const enriched = trades.map((t) => {
       const currentPrice = t.current_price || t.entry_price;
       return pts.getLiveTradeData(t, currentPrice);
@@ -25,98 +24,98 @@ paperTradingRouter.get('/trades/open', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-paperTradingRouter.get('/trades/closed', (req, res) => {
-  try { res.json(pts.getClosedTrades(parseInt(req.query.limit) || 50)); } catch (err) { res.status(500).json({ error: err.message }); }
+paperTradingRouter.get('/trades/closed', async (req, res) => {
+  try { res.json(await pts.getClosedTrades(parseInt(req.query.limit) || 50)); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-paperTradingRouter.get('/trades', (req, res) => {
-  try { res.json(pts.getAllTrades(parseInt(req.query.limit) || 100)); } catch (err) { res.status(500).json({ error: err.message }); }
+paperTradingRouter.get('/trades', async (req, res) => {
+  try { res.json(await pts.getAllTrades(parseInt(req.query.limit) || 100)); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-paperTradingRouter.get('/trades/:id', (req, res) => {
+paperTradingRouter.get('/trades/:id', async (req, res) => {
   try {
-    const trade = pts.getTrade(parseInt(req.params.id));
+    const trade = await pts.getTrade(parseInt(req.params.id));
     if (!trade) return res.status(404).json({ error: 'Trade not found' });
     res.json(trade);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-paperTradingRouter.post('/trade', (req, res) => {
+paperTradingRouter.post('/trade', async (req, res) => {
   try {
-    const trade = pts.openTrade(req.body);
+    const trade = await pts.openTrade(req.body);
     res.json(trade);
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-paperTradingRouter.get('/orders/pending', (req, res) => {
+paperTradingRouter.get('/orders/pending', async (req, res) => {
   try {
-    const orders = pts.getPendingOrders();
+    const orders = await pts.getPendingOrders();
     const enriched = orders.map((o) => {
-      const currentPrice = priceCache[o.symbol] || o.entry_price;
+      const currentPrice = o.entry_price;
       return pts.getLiveOrderData(o, currentPrice);
     });
     res.json(enriched);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-paperTradingRouter.post('/orders/:id/cancel', (req, res) => {
+paperTradingRouter.post('/orders/:id/cancel', async (req, res) => {
   try {
-    const result = pts.cancelPendingOrder(parseInt(req.params.id));
+    const result = await pts.cancelPendingOrder(parseInt(req.params.id));
     res.json(result);
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-paperTradingRouter.put('/orders/:id/modify', (req, res) => {
+paperTradingRouter.put('/orders/:id/modify', async (req, res) => {
   try {
-    const result = pts.modifyPendingOrder(parseInt(req.params.id), req.body);
+    const result = await pts.modifyPendingOrder(parseInt(req.params.id), req.body);
     res.json(result);
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
 paperTradingRouter.post('/orders/check-pending', async (req, res) => {
   try {
-    const executed = await pts.checkPendingOrders(priceCache);
+    const executed = await pts.checkPendingOrders(req.body.prices || {});
     res.json({ executed, count: executed.length });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-paperTradingRouter.put('/trade/:id/modify', (req, res) => {
+paperTradingRouter.put('/trade/:id/modify', async (req, res) => {
   try {
-    const trade = pts.modifyTrade(parseInt(req.params.id), req.body);
+    const trade = await pts.modifyTrade(parseInt(req.params.id), req.body);
     res.json(trade);
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-paperTradingRouter.post('/trade/:id/partial-close', (req, res) => {
+paperTradingRouter.post('/trade/:id/partial-close', async (req, res) => {
   try {
-    const result = pts.partialClose(parseInt(req.params.id), req.body.percentage);
+    const result = await pts.partialClose(parseInt(req.params.id), req.body.percentage);
     res.json(result);
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-paperTradingRouter.post('/trade/:id/close', (req, res) => {
+paperTradingRouter.post('/trade/:id/close', async (req, res) => {
   try {
-    const trade = pts.closeTrade(parseInt(req.params.id), req.body.exitPrice, req.body.reason);
+    const trade = await pts.closeTrade(parseInt(req.params.id), req.body.exitPrice, req.body.reason);
     res.json(trade);
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-paperTradingRouter.post('/reset', (req, res) => {
-  try { res.json(pts.resetAccount(req.body.balance)); } catch (err) { res.status(500).json({ error: err.message }); }
+paperTradingRouter.post('/reset', async (req, res) => {
+  try { res.json(await pts.resetAccount(req.body.balance)); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-paperTradingRouter.post('/check-sl-tp', (req, res) => {
+paperTradingRouter.post('/check-sl-tp', async (req, res) => {
   try {
-    pts.checkStopLossAndTakeProfit(req.body.symbol, req.body.currentPrice);
+    await pts.checkStopLossAndTakeProfit(req.body.symbol, req.body.currentPrice);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 paperTradingRouter.post('/ai-advice/:id', async (req, res) => {
   try {
-    const trade = pts.getTrade(parseInt(req.params.id));
+    const trade = await pts.getTrade(parseInt(req.params.id));
     if (!trade) return res.status(404).json({ error: 'Trade not found' });
-    const advice = await getTradeAdvice(trade, priceCache);
+    const advice = await getTradeAdvice(trade, req.body.prices || {});
     res.json({ advice });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

@@ -1,5 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
-import { io } from 'socket.io-client';
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 
 interface Notification {
@@ -62,49 +61,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     notifications_enabled: true,
   });
   const { user, token } = useAuth();
-  const socketRef = useRef<any>(null);
-
-  useEffect(() => {
-    if (!token) return;
-    fetchNotifications();
-    fetchUnreadCount();
-    fetchSettings();
-  }, [token]);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const socket = io({
-      transports: ['websocket', 'polling'],
-    });
-
-    socketRef.current = socket;
-
-    socket.on('connect', () => {
-      socket.emit('join-notifications', user.id);
-    });
-
-    socket.on('notification', (notification: Notification) => {
-      setNotifications(prev => [notification, ...prev]);
-      setUnreadCount(prev => prev + 1);
-
-      addToast({
-        id: notification.id,
-        title: notification.title,
-        message: notification.message,
-        type: notification.notification_type || 'system',
-        priority: notification.priority || 'normal',
-      });
-    });
-
-    socket.on('notification-count', (data: { count: number }) => {
-      setUnreadCount(prev => prev + data.count);
-    });
-
-    return () => {
-      socket.disconnect();
-    };
-  }, [user]);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -141,6 +97,21 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       }
     } catch {}
   }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    fetchNotifications();
+    fetchUnreadCount();
+    fetchSettings();
+  }, [token]);
+
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(() => {
+      fetchUnreadCount();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [user, fetchUnreadCount]);
 
   const markAsRead = useCallback(async (id: number) => {
     try {
