@@ -49,16 +49,20 @@ async function fetchCoinList() {
   return data;
 }
 
+const STABLECOINS = new Set(['USDT', 'USDC', 'BUSD', 'DAI', 'FDUSD', 'TUSD', 'USD1', 'USDD', 'FRAX', 'LUSD', 'GHO', 'CRVUSD']);
+
 function buildSymbolMap(coins) {
   const map = {};
   const exchangeInfo = [];
   for (const c of coins) {
-    const sym = (c.symbol || '').toUpperCase() + 'USDT';
+    const base = (c.symbol || '').toUpperCase();
+    if (STABLECOINS.has(base)) continue;
+    const sym = base + 'USDT';
     if (!map[sym]) {
       map[sym] = c.id;
       exchangeInfo.push({
         symbol: sym,
-        baseAsset: (c.symbol || '').toUpperCase(),
+        baseAsset: base,
         quoteAsset: 'USDT',
         pricePrecision: 2,
         quantityPrecision: 5,
