@@ -34,8 +34,8 @@ function Dashboard() {
   useEffect(() => { localStorage.setItem('showSignalPanel', String(showSignalPanel)); }, [showSignalPanel]);
 
   return (
-    <div className="h-screen flex flex-col bg-bg-primary text-text-primary overflow-y-auto">
-      <nav className="h-9 flex items-center px-3 border-b border-border-primary bg-bg-secondary/80 backdrop-blur-xl shrink-0 gap-1">
+    <div className="bg-bg-primary text-text-primary min-h-screen">
+      <nav className="h-9 sticky top-0 z-40 flex items-center px-3 border-b border-border-primary bg-bg-secondary/80 backdrop-blur-xl gap-1">
         {([
           { id: 'terminal', label: 'Terminal', icon: '◈' },
           { id: 'paper', label: 'Paper Trading', icon: '📊' },
@@ -68,10 +68,10 @@ function Dashboard() {
       </nav>
 
       {page === 'terminal' && (
-        <>
+        <div className="h-[calc(100vh-36px)] flex flex-col">
           <Header />
           <MarqueeTicker />
-          <div className="flex flex-1 overflow-hidden">
+          <div className="flex flex-1 min-h-0 overflow-hidden">
             {sidebarOpen && <Sidebar />}
             <ChartPanel />
             {showOrderBook && (
@@ -81,20 +81,20 @@ function Dashboard() {
             )}
             {showSignalPanel && <SignalPanel />}
           </div>
-        </>
+        </div>
       )}
 
       {page === 'paper' && (
-        <>
+        <div className="flex flex-col" style={{ minHeight: 'calc(100vh - 36px)' }}>
           <Header />
-          <div className="flex flex-1 overflow-y-auto"><PaperTrading /></div>
-        </>
+          <div className="flex flex-1"><PaperTrading /></div>
+        </div>
       )}
 
-      {page === 'analytics' && <div className="flex-1 overflow-y-auto"><AnalyticsDashboard /></div>}
-      {page === 'patterns' && <div className="flex-1 overflow-y-auto"><PatternDetection /></div>}
-      {page === 'whale' && <div className="flex-1 overflow-y-auto"><WhaleTracker /></div>}
-      {page === 'risk' && <div className="flex-1 overflow-y-auto"><RiskCalculator /></div>}
+      {page === 'analytics' && <AnalyticsDashboard />}
+      {page === 'patterns' && <PatternDetection />}
+      {page === 'whale' && <WhaleTracker />}
+      {page === 'risk' && <RiskCalculator />}
 
       {searchOpen && <SearchModal />}
     </div>
