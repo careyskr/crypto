@@ -5,12 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "cd backend && npm run dev",
+    "dev:backend": "node --watch backend/src/server.js",
     "dev:frontend": "cd frontend && npm run dev",
     "build": "cd frontend && npm install && npm run build",
-    "start": "cd backend && node src/server.js",
-    "db:create": "cd backend && npm run db:create",
-    "vercel-build": "cd frontend && npm install && npm run build"
+    "start": "node backend/src/server.js",
+    "db:create": "node backend/scripts/initDb.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
