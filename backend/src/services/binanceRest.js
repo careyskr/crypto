@@ -65,7 +65,7 @@ const INTERVAL_MAP = {
 };
 
 const cache = new Map();
-const CACHE_TTL = 5000;
+const CACHE_TTL = 60000; // 60s to avoid CoinGecko rate limit (free tier ~30 req/min)
 
 function cachedFetch(url, ttl = CACHE_TTL) {
   const cached = cache.get(url);
@@ -82,7 +82,7 @@ function setCache(url, data) {
 }
 
 async function fetchWithTimeout(url, timeoutMs = 5000) {
-  const cached = cachedFetch(url, 3000);
+  const cached = cachedFetch(url);
   if (cached) return cached;
 
   const controller = new AbortController();
