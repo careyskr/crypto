@@ -1,17 +1,75 @@
-const BASE_URLS = [
-  'https://api.binance.com',
-  'https://api2.binance.com',
-  'https://api3.binance.com',
-];
-const TIMEOUT_MS = 4000;
+const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
+
+const SYMBOL_MAP = {
+  'BTCUSDT': 'bitcoin',
+  'ETHUSDT': 'ethereum',
+  'BNBUSDT': 'binancecoin',
+  'SOLUSDT': 'solana',
+  'XRPUSDT': 'ripple',
+  'ADAUSDT': 'cardano',
+  'DOGEUSDT': 'dogecoin',
+  'AVAXUSDT': 'avalanche-2',
+  'DOTUSDT': 'polkadot',
+  'LINKUSDT': 'chainlink',
+  'MATICUSDT': 'matic-network',
+  'UNIUSDT': 'uniswap',
+  'SHIBUSDT': 'shiba-inu',
+  'LTCUSDT': 'litecoin',
+  'ATOMUSDT': 'cosmos',
+  'ETCUSDT': 'ethereum-classic',
+  'XLMUSDT': 'stellar',
+  'BCHUSDT': 'bitcoin-cash',
+  'ALGOUSDT': 'algorand',
+  'VETUSDT': 'vechain',
+  'FILUSDT': 'filecoin',
+  'TRXUSDT': 'tron',
+  'APTUSDT': 'aptos',
+  'ARBUSDT': 'arbitrum',
+  'OPUSDT': 'optimism',
+  'SUIUSDT': 'sui',
+  'PEPEUSDT': 'pepe',
+  'INJUSDT': 'injective-protocol',
+  'TIAUSDT': 'celestia',
+  'SEIUSDT': 'sei-network',
+  'NEARUSDT': 'near',
+  'SANDUSDT': 'the-sandbox',
+  'MANAUSDT': 'decentraland',
+  'AAVEUSDT': 'aave',
+  'MKRUSDT': 'maker',
+  'CRVUSDT': 'curve-dao-token',
+  'COMPUSDT': 'compound-governance-token',
+  'AXSUSDT': 'axie-infinity',
+  'EGLDUSDT': 'elrond-erd-2',
+  'FTMUSDT': 'fantom',
+  'RUNEUSDT': 'thorchain',
+  'KAVAUSDT': 'kava',
+  'QTUMUSDT': 'qtum',
+  'ZECUSDT': 'zcash',
+  'DASHUSDT': 'dash',
+  'XMRUSDT': 'monero',
+  'HBARUSDT': 'hedera-hashgraph',
+  'ICPUSDT': 'internet-computer',
+  'FETUSDT': 'fetch-ai',
+  'GRTUSDT': 'the-graph',
+};
+
+const INTERVAL_MAP = {
+  '1m': '1',
+  '5m': '5',
+  '15m': '15',
+  '30m': '30',
+  '1h': '60',
+  '4h': '240',
+  '1d': '1',
+  '1w': '7',
+};
+
 const cache = new Map();
 const CACHE_TTL = 5000;
 
 function cachedFetch(url, ttl = CACHE_TTL) {
   const cached = cache.get(url);
-  if (cached && Date.now() - cached.time < ttl) {
-    return cached.data;
-  }
+  if (cached && Date.now() - cached.time < ttl) return cached.data;
   return null;
 }
 
@@ -19,112 +77,99 @@ function setCache(url, data) {
   cache.set(url, { data, time: Date.now() });
   if (cache.size > 200) {
     const oldest = [...cache.entries()].sort((a, b) => a[1].time - b[1].time);
-    oldest.slice(0, 50).forEach(([key]) => cache.delete(key));
+    oldest.slice(0, 50).forEach(([k]) => cache.delete(k));
+  }
+}
+
+async function fetchWithTimeout(url, timeoutMs = 5000) {
+  const cached = cachedFetch(url, 3000);
+  if (cached) return cached;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    const data = await res.json();
+    setCache(url, data);
+    return data;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
 export class BinanceRestService {
-  async fetchBinance(endpoint, params = {}, ttl = CACHE_TTL) {
-    const shuffled = [...BASE_URLS].sort(() => Math.random() - 0.5);
-    let lastErr;
-
-    for (const base of shuffled) {
-      const url = new URL(`${base}${endpoint}`);
-      Object.entries(params).forEach(([k, v]) => {
-        if (v !== undefined && v !== null) url.searchParams.set(k, v);
-      });
-
-      const urlStr = url.toString();
-      const cached = cachedFetch(urlStr, ttl);
-      if (cached) return cached;
-
-      try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-        const res = await fetch(urlStr, { signal: controller.signal });
-        clearTimeout(timer);
-
-        if (!res.ok) {
-          lastErr = new Error(`Binance API error: ${res.status} ${res.statusText}`);
-          continue;
-        }
-        const data = await res.json();
-        setCache(urlStr, data);
-        return data;
-      } catch (err) {
-        lastErr = err;
-      }
-    }
-
-    throw lastErr || new Error('All Binance API endpoints failed');
+  async fetchBinance(endpoint, params = {}) {
+    throw new Error('Direct Binance API unavailable from this region; using alternative data source');
   }
 
   async getExchangeInfo() {
-    const data = await this.fetchBinance('/api/v3/exchangeInfo', {}, 60000);
-    return data.symbols
-      .filter(s => s.status === 'TRADING' && s.quoteAsset === 'USDT')
-      .map(s => ({
-        symbol: s.symbol,
-        baseAsset: s.baseAsset,
-        quoteAsset: s.quoteAsset,
-        pricePrecision: s.pricePrecision,
-        quantityPrecision: s.quantityPrecision,
-      }));
+    return Object.entries(SYMBOL_MAP).map(([symbol, id]) => ({
+      symbol, baseAsset: symbol.replace('USDT', ''), quoteAsset: 'USDT',
+      pricePrecision: 2, quantityPrecision: 5,
+    }));
   }
 
   async getKlines(symbol = 'BTCUSDT', interval = '1h', limit = 500) {
-    const data = await this.fetchBinance('/api/v3/klines', { symbol, interval, limit });
-    return data.map(k => ({
+    const id = SYMBOL_MAP[symbol];
+    if (!id) throw new Error(`Unsupported symbol: ${symbol}`);
+
+    const days = { '1m': 1, '5m': 1, '15m': 1, '30m': 2, '1h': 7, '4h': 30, '1d': 90, '1w': 365 };
+    const d = days[interval] || 7;
+
+    const data = await fetchWithTimeout(
+      `${COINGECKO_BASE}/coins/${id}/ohlc?vs_currency=usd&days=${d}`,
+      8000
+    );
+
+    return (data || []).map(k => ({
       time: k[0] / 1000,
-      open: parseFloat(k[1]),
-      high: parseFloat(k[2]),
-      low: parseFloat(k[3]),
-      close: parseFloat(k[4]),
-      volume: parseFloat(k[5]),
-      closeTime: k[6] / 1000,
-      quoteVolume: parseFloat(k[7]),
-      trades: k[8],
+      open: k[1],
+      high: k[2],
+      low: k[3],
+      close: k[4],
+      volume: 0,
+      closeTime: k[0] / 1000,
+      quoteVolume: 0,
+      trades: 0,
     }));
   }
 
   async get24hTickers() {
-    const data = await this.fetchBinance('/api/v3/ticker/24hr', {}, 3000);
-    return data
-      .filter(t => t.symbol.endsWith('USDT'))
-      .map(t => ({
-        symbol: t.symbol,
-        priceChange: parseFloat(t.priceChange),
-        priceChangePercent: parseFloat(t.priceChangePercent),
-        lastPrice: parseFloat(t.lastPrice),
-        volume: parseFloat(t.volume),
-        quoteVolume: parseFloat(t.quoteVolume),
-        highPrice: parseFloat(t.highPrice),
-        lowPrice: parseFloat(t.lowPrice),
-        count: parseInt(t.count),
-      }));
+    const data = await fetchWithTimeout(
+      `${COINGECKO_BASE}/coins/markets?vs_currency=usd&order=volume_desc&per_page=100&page=1&sparkline=false`,
+      10000
+    );
+
+    const reverseMap = {};
+    for (const [sym, id] of Object.entries(SYMBOL_MAP)) {
+      reverseMap[id] = sym;
+    }
+
+    return (data || []).filter(c => reverseMap[c.id]).map(c => ({
+      symbol: reverseMap[c.id],
+      priceChange: c.price_change_24h || 0,
+      priceChangePercent: c.price_change_percentage_24h || 0,
+      lastPrice: c.current_price || 0,
+      volume: c.total_volume || 0,
+      quoteVolume: (c.total_volume || 0) * (c.current_price || 0),
+      highPrice: c.high_24h || 0,
+      lowPrice: c.low_24h || 0,
+      count: 0,
+    }));
   }
 
   async get24hTicker(symbol) {
-    const data = await this.fetchBinance('/api/v3/ticker/24hr', { symbol }, 3000);
-    return {
-      symbol: data.symbol,
-      priceChange: parseFloat(data.priceChange),
-      priceChangePercent: parseFloat(data.priceChangePercent),
-      lastPrice: parseFloat(data.lastPrice),
-      volume: parseFloat(data.volume),
-      quoteVolume: parseFloat(data.quoteVolume),
-      highPrice: parseFloat(data.highPrice),
-      lowPrice: parseFloat(data.lowPrice),
-      count: parseInt(data.count),
-    };
+    const tickers = await this.get24hTickers();
+    return tickers.find(t => t.symbol === symbol) || { symbol, lastPrice: 0, priceChange: 0, priceChangePercent: 0, volume: 0, highPrice: 0, lowPrice: 0 };
   }
 
   async searchSymbols(query) {
     if (!query || query.length < 1) return [];
-    const symbols = await this.getExchangeInfo();
     const q = query.toUpperCase();
-    return symbols
-      .filter(s => s.symbol.includes(q) || s.baseAsset.includes(q))
-      .slice(0, 20);
+    return Object.keys(SYMBOL_MAP)
+      .filter(s => s.includes(q) || s.replace('USDT', '').includes(q))
+      .slice(0, 20)
+      .map(s => ({ symbol: s, baseAsset: s.replace('USDT', ''), quoteAsset: 'USDT', pricePrecision: 2, quantityPrecision: 5 }));
   }
 }
