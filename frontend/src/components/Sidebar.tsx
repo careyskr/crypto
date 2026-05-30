@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../stores/useAppStore';
 import { useSocket } from '../hooks/useSocket';
-import { fetchExchangeTickers } from '../utils/api';
+import { getTickers } from '../utils/binanceApi';
 import { formatPrice, formatPercent, formatVolume, getBaseAsset } from '../utils/format';
 import { IndicatorsPanel } from './IndicatorsPanel';
 import type { Ticker } from '../types';
 
 export function Sidebar() {
-  const { setSymbol, toggleFavorite, isFavorite, exchange, triggerSignalFor } = useAppStore();
+  const { setSymbol, toggleFavorite, isFavorite, triggerSignalFor } = useAppStore();
   const { subscribeTicker } = useSocket();
   const [tickers, setTickers] = useState<Ticker[]>([]);
   const [filter, setFilter] = useState<'all' | 'favorites' | 'gainers' | 'losers'>('all');
@@ -19,7 +19,7 @@ export function Sidebar() {
     let mounted = true;
     const load = async () => {
       try {
-        const data = await fetchExchangeTickers(exchange);
+        const data = await getTickers();
         if (mounted) {
           setTickers(data);
           data.forEach((t: Ticker) => tickerMapRef.current.set(t.symbol, t));
@@ -29,7 +29,7 @@ export function Sidebar() {
     load();
     const interval = setInterval(load, 10000);
     return () => { mounted = false; clearInterval(interval); };
-  }, [exchange]);
+  }, []);
 
   // Real-time price updates for sidebar tickers
   useEffect(() => {

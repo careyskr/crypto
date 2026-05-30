@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../stores/useAppStore';
-import { searchSymbols } from '../utils/api';
-import type { SymbolInfo } from '../types';
+import { searchSymbols } from '../utils/binanceApi';
 
 export function SearchModal() {
   const { setSearchOpen, setSymbol } = useAppStore();
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SymbolInfo[]>([]);
+  const [results, setResults] = useState<{ symbol: string; baseAsset: string; quoteAsset: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<any>(null);

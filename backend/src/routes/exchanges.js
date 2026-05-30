@@ -62,6 +62,7 @@ exchangesRouter.get('/tickers', async (req, res) => {
     const { exchange } = req.query;
     const ex = getExchange(exchange || 'binance');
     const data = await ex.get24hTickers();
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -3,6 +3,17 @@ import type { Ticker } from '../types';
 
 type TickerCallback = (data: Ticker & { exchange?: string }) => void;
 
+const STABLECOINS = new Set(['USDT', 'USDC', 'BUSD', 'DAI', 'TUSD', 'FDUSD', 'USDP', 'GUSD', 'PAX', 'USD', 'EUR', 'GBP', 'JPY', 'AUD']);
+const INVALID_PAIRS = new Set(['USDTUSDT', 'USDCUSDT', 'BUSDUSDT', 'DAIUSDT', 'TUSDUSDT', 'FDUSDUSDT', 'USDPUSDT']);
+
+function isValidSymbol(symbol: string): boolean {
+  const sym = symbol.toUpperCase();
+  if (INVALID_PAIRS.has(sym)) return false;
+  const base = sym.replace(/USDT$|USDC$|BUSD$|FDUSD$|DAI$|TUSD$|EUR$|GBP$/i, '');
+  if (!base || base.length < 2 || STABLECOINS.has(base)) return false;
+  return true;
+}
+
 const listeners = new Map<string, Set<TickerCallback>>();
 let ws: WebSocket | null = null;
 let connectAttempts = 0;
@@ -10,6 +21,10 @@ let connectAttempts = 0;
 function connectBinance() {
   if (ws?.readyState === WebSocket.OPEN) return;
   ws?.close();
+  // Remove stale listeners for invalid symbols
+  for (const sym of listeners.keys()) {
+    if (!isValidSymbol(sym)) listeners.delete(sym);
+  }
   const symbols = [...listeners.keys()];
   if (symbols.length === 0) return;
   const streams = symbols.map(s => `${s.toLowerCase()}@ticker`).join('/');
@@ -74,6 +89,7 @@ export function useSocket() {
 
   const subscribeTicker = useCallback((symbol: string, callback: TickerCallback) => {
     const sym = symbol.toUpperCase();
+    if (!isValidSymbol(sym)) return () => {};
     if (!listeners.has(sym)) listeners.set(sym, new Set());
     listeners.get(sym)!.add(callback);
     subscribedRef.current.add(sym);

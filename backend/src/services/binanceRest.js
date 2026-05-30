@@ -51,6 +51,86 @@ async function fetchCoinList() {
 
 const STABLECOINS = new Set(['USDT', 'USDC', 'BUSD', 'DAI', 'FDUSD', 'TUSD', 'USD1', 'USDD', 'FRAX', 'LUSD', 'GHO', 'CRVUSD']);
 
+// Fallback list of known Binance USDT pairs (large, actively traded)
+const FALLBACK_BINANCE_SYMBOLS = new Set([
+  'BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','DOGEUSDT','ADAUSDT','AVAXUSDT','TRXUSDT','LINKUSDT',
+  'DOTUSDT','MATICUSDT','NEARUSDT','UNIUSDT','PEPEUSDT','ATOMUSDT','FILUSDT','APTUSDT','LTCUSDT','ARBUSDT',
+  'AAVEUSDT','OPUSDT','INJUSDT','FETUSDT','ALGOUSDT','FTMUSDT','SANDUSDT','MANAUSDT','AXSUSDT','EGLDUSDT',
+  'THETAUSDT','ICPUSDT','GRTUSDT','RUNEUSDT','CRVUSDT','GALAUSDT','CHZUSDT','ENJUSDT','XTZUSDT','EOSUSDT',
+  'FLOWUSDT','KAVAUSDT','BATUSDT','ZILUSDT','DYDXUSDT','ANKRUSDT','IOSTUSDT','SKLUSDT','LRCUSDT','1INCHUSDT',
+  'BANDUSDT','STORJUSDT','OMGUSDT','CTSIUSDT','CELOUSDT','ROSEUSDT','ALPHAUSDT','STMXUSDT','TVKUSDT','BLZUSDT',
+  'SUSHIUSDT','YFIUSDT','SNXUSDT','COMPUSDT','MKRUSDT','UMAUSDT','BALUSDT','KNCUSDT','ZRXUSDT','RENUSDT',
+  'LINAUSDT','ARUSDT','AUDIOUSDT','HOTUSDT','RVNUSDT','SCUSDT','DGBUSDT','WAVESUSDT','NEOUSDT','VETUSDT',
+  'IOTAUSDT','ONTUSDT','QTUMUSDT','LSKUSDT','DASHUSDT','XEMUSDT','ZECUSDT','XMRUSDT','ETCUSDT','WBNBUSDT',
+  'SHIBUSDT','FLOKIUSDT','BONKUSDT','WIFUSDT','TIAUSDT','SEIUSDT','SUIUSDT','JTOUSDT','PYTHUSDT','STRKUSDT',
+  'ENAUSDT','ETHFIUSDT','AEVOUSDT','REZUSDT','NOTUSDT','IOUSDT','ZROUSDT','BBUSDT','LISTAUSDT','FTNUSDT',
+  'SAGAUSDT','TAOUSDT','OMNIUSDT','DEGENUSDT','TNSRUSDT','WUSDT','PENDLEUSDT','ALTUSDT','METISUSDT','BLASTUSDT',
+  'ZKUSDT','TONUSDT','HMSTRUSDT','DOGSUSDT','CATIUSDT','NEIROUSDT','GOATUSDT','SLERFUSDT','BOMEUSDT','MEWUSDT',
+  'POPCATUSDT','MOGUSDT','PONKEUSDT','MYROUSDT','WENUSDT','DYMUSDT','NMTUSDT','ACALAUSDT','GLMRUSDT','MOVRUSDT',
+  'CFXUSDT','KAIAUSDT','MNTUSDT','POLUSDT','COREUSDT','BEAMUSDT','RENDERUSDT','IMXUSDT','JASMYUSDT','WLDUSDT',
+  'FLOKIUSDT','ORDIUSDT','SATSIUSDT','RATSUSDT','1000SATSUSDT','ACHUSDT','NFPUSDT','ACEUSDT','XAIUSDT','MANTAUSDT',
+  'PIXELUSDT','PORTALUSDT','ETHWUSDT','LDOUSDT','RPLUSDT','SSVUSDT','FXSUSDT','AGIXUSDT','OCEANUSDT','NMRUSDT',
+  'POLYXUSDT','VANRYUSDT','RLCUSDT','TRBUSDT','OGNUSDT','CVCUSDT','GTCUSDT','ANTUSDT','BELUSDT','DUSKUSDT',
+  'AIUSDT','ARKMUSDT','NFPUSDT','ACIOUSDT','IDUSDT','SYNUSDT','MAVUSDT','PHAUSDT','AMBUSDT','IQUSDT',
+  'VELOUSDT','RADUSDT','PROMUSDT','LITUSDT','API3USDT','SXPUSDT','REIUSDT','BADGERUSDT','BOBAUSDT','IMXUSDT',
+  'KSMUSDT','ZENUSDT','STXUSDT','MINAUSDT','ENSUSDT','HNTUSDT','GNOUSDT','CKBUSDT','CHRUSDT','CELRUSDT',
+  'ALICEUSDT','BICOUSDT','CLVUSDT','REQUSDT','VITEUSDT','FUNUSDT','LOOMUSDT','BTRSTUSDT','COTIUSDT','TRIBEUSDT',
+  'MDTUSDT','WAXPUSDT','TLMUSDT','QNTUSDT','KMDUSDT','SYSUSDT','ARDRUSDT','XVSUSDT','ALPACAUSDT','EPSUSDT',
+  'FIOUSDT','DOCKUSDT','AVAUSDT','ATMUSDT','DIAUSDT','FISUSDT','MLNUSDT','DENTUSDT','DREPUSDT','RAIUSDT',
+  'RIFUSDT','RENBTCUSDT','PNTUSDT','BZRXUSDT','CREAMUSDT','KP3RUSDT','TRUUSDT','ORNUSDT','UTKUSDT','C98USDT',
+  'ERNUSDT','IDEXUSDT','POLSUSDT','SUPERUSDT','AKROUSDT','COCOSUSDT','MTLUSDT','TOMOUSDT','KAIUSDT','FTTUSDT',
+  'SRMUSDT','MAPSUSDT','MEDIAUSDT','OXYUSDT','FIDAUSDT','RAYUSDT','COPEUSDT','MERUSDT','LIKEUSDT','LATTEUSDT',
+  'SBRUSDT','SLIMUSDT','TULIPUSDT','WOOUSDT','UNFIUSDT','BONDUSDT','FORTHUSDT','NUUSDT','KEEPUSDT','MASKUSDT',
+  'DODOUSDT','BAKEUSDT','BURGERUSDT','SWINGBYUSDT','CAKEUSDT','TWTUSDT','XPRUSDT','VIDTUSDT','STPTUSDT','DGUSDT',
+  'AUCTIONUSDT','PROSUSDT','QUICKUSDT','ALPINEUSDT','PORTOUSDT','SANTOSUSDT','LAZIUSDT','PSGUSDT','CITYUSDT','ACMUSDT',
+  'ATMUSDT','JUVUSDT','NAPUSDT','FORUSDT','ASRUSDT','BARUSDT','INTERUSDT','AFCUSDT','ARGUSDT','ROMAUSDT',
+  'CROUSDT','HEGICUSDT','PEOPLEUSDT','OOKIUSDT','GALUSDT','RAREUSDT','DEXEUSDT','YGGUSDT','MAGICUSDT','LQTYUSDT',
+  'CREAMUSDT','CVPUSDT','BETAUSDT','LEVERUSDT','PONDUSDT','VOXELUSDT','HIGHUSDT','GSTUSDT','GMTUSDT','MBOXUSDT',
+  'RACAUSDT','ERNUSDT','CEEKUSDT','TLMUSDT','DARUSDT','RNDRUSDT','HFTUSDT','MULTIUSDT','OAXUSDT','PLAUSDT',
+  'POWRUSDT','QKCUSDT','RAMPUSDT','SHFTUSDT','SNTUSDT','STRAXUSDT','TROYUSDT','VIBUSDT','WANUSDT','WINUSDT',
+  'WNXMUSDT','XECUSDT','YFIIUSDT','ZCXUSDT','ZENUSDT','ZILUSDT','ZRXUSDT','TRBUSDT','TFUELUSDT','NKNUSDT',
+  'NULSUSDT','OCEANUSDT','OGNUSDT','OMUSDT','ONEUSDT','ONGUSDT','ORNUSDT','OSTUSDT','PHBUSDT','PIVXUSDT',
+  'POLYUSDT','PSTAKEUSDT','QNTUSDT','RADUSDT','RAREUSDT','RENUSDT','REPUSDT','REQUSDT','RLCUSDT','ROSEUSDT',
+  'RUNEUSDT','SFPUSDT','SKLUSDT','SLPUSDT','SNXUSDT','SOLVEUSDT','SPELLUSDT','SRMUSDT','SteemUSDT','STGUSDT',
+  'STMXUSDT','STORJUSDT','STPTUSDT','STRAXUSDT','STXUSDT','SUNUSDT','SUPERUSDT','SUSHIUSDT','SWRVUSDT','SXPUSDT',
+]);
+
+// Fetch Binance valid trading pairs - try multiple endpoints
+const BINANCE_REST = 'https://api.binance.com';
+const BINANCE_MIRRORS = ['https://api1.binance.com', 'https://api2.binance.com', 'https://api3.binance.com'];
+
+async function fetchBinanceSymbols() {
+  const urls = [BINANCE_REST, ...BINANCE_MIRRORS];
+  for (const base of urls) {
+    try {
+      const data = await fetchWithTimeout(`${base}/api/v3/exchangeInfo`, 5000);
+      if (data && data.symbols) {
+        const symbols = data.symbols
+          .filter(s => s.status === 'TRADING' && s.quoteAsset === 'USDT')
+          .map(s => s.symbol);
+        if (symbols.length > 0) return new Set(symbols);
+      }
+    } catch {}
+  }
+  return null;
+}
+
+let binanceSymbolsCache = null;
+let binanceSymbolsTime = 0;
+const BINANCE_SYMBOLS_TTL = 300000; // 5 min
+
+async function getBinanceSymbols() {
+  if (binanceSymbolsCache && Date.now() - binanceSymbolsTime < BINANCE_SYMBOLS_TTL) {
+    return binanceSymbolsCache;
+  }
+  const symbols = await fetchBinanceSymbols();
+  if (symbols) {
+    binanceSymbolsCache = symbols;
+    binanceSymbolsTime = Date.now();
+  }
+  return symbols || FALLBACK_BINANCE_SYMBOLS;
+}
+
 function buildSymbolMap(coins) {
   const map = {};
   const exchangeInfo = [];
@@ -126,24 +206,35 @@ export class BinanceRestService {
     return result.slice(-Math.min(limit, result.length));
   }
 
-  async get24hTickers() {
-    const coins = await fetchCoinList();
-    const { idMap } = buildSymbolMap(coins);
+  async fetchBinance24hTickers() {
+    const urls = [BINANCE_REST, ...BINANCE_MIRRORS];
+    for (const base of urls) {
+      try {
+        const data = await fetchWithTimeout(`${base}/api/v3/ticker/24hr`, 10000);
+        if (Array.isArray(data) && data.length > 0) {
+          return data
+            .filter(t => t.symbol.endsWith('USDT'))
+            .map(t => ({
+              symbol: t.symbol,
+              priceChange: parseFloat(t.priceChange) || 0,
+              priceChangePercent: parseFloat(t.priceChangePercent) || 0,
+              lastPrice: parseFloat(t.lastPrice) || 0,
+              volume: parseFloat(t.volume) || 0,
+              quoteVolume: parseFloat(t.quoteVolume) || 0,
+              highPrice: parseFloat(t.highPrice) || 0,
+              lowPrice: parseFloat(t.lowPrice) || 0,
+              count: t.count || 0,
+            }));
+        }
+      } catch {}
+    }
+    return null;
+  }
 
-    return (coins || []).map(c => {
-      const sym = (c.symbol || '').toUpperCase() + 'USDT';
-      return {
-        symbol: sym,
-        priceChange: c.price_change_24h || 0,
-        priceChangePercent: c.price_change_percentage_24h || 0,
-        lastPrice: c.current_price || 0,
-        volume: c.total_volume || 0,
-        quoteVolume: (c.total_volume || 0) * (c.current_price || 0),
-        highPrice: c.high_24h || 0,
-        lowPrice: c.low_24h || 0,
-        count: 0,
-      };
-    });
+  async get24hTickers() {
+    const tickers = await this.fetchBinance24hTickers();
+    if (tickers) return tickers;
+    return [];
   }
 
   async get24hTicker(symbol) {

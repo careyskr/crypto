@@ -6,7 +6,7 @@ import {
 } from 'lightweight-charts';
 import { useAppStore } from '../stores/useAppStore';
 import { useIndicatorStore } from '../stores/useIndicatorStore';
-import { fetchExchangeKlines, fetchExchangeTicker } from '../utils/api';
+import { getKlines, getTicker } from '../utils/binanceApi';
 import { fetchIndicators } from '../utils/indicatorsApi';
 import { formatPrice, formatPercent, formatVolume, formatSymbol } from '../utils/format';
 import type { Ticker } from '../types';
@@ -242,8 +242,8 @@ export function ChartPanel() {
     const load = async () => {
       try {
         const [klines, tickerData, indicators] = await Promise.all([
-          fetchExchangeKlines(exchange, symbol, interval, 500),
-          fetchExchangeTicker(exchange, symbol),
+          getKlines(symbol, interval, 500).catch(() => []),
+          getTicker(symbol).catch(() => null),
           fetchIndicators(symbol, interval, 500),
         ]);
 
@@ -503,7 +503,7 @@ export function ChartPanel() {
 
     const refreshKlines = async () => {
       try {
-        const klines = await fetchExchangeKlines(exchange, symbol, interval, 50);
+        const klines = await getKlines(symbol, interval, 50).catch(() => []);
         if (klines.length > 0 && candleSeriesRef.current && volumeSeriesRef.current) {
           const recent = klines.slice(-5);
           for (const k of recent) {

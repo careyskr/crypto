@@ -14,6 +14,7 @@ import { AnalyticsDashboard } from './components/AnalyticsDashboard';
 import { WhaleTracker } from './components/WhaleTracker';
 import { RiskCalculator } from './components/RiskCalculator';
 import { PatternDetection } from './components/PatternDetection';
+import { MobileTerminal } from './components/MobileTerminal';
 import { ToastContainer } from './components/ToastContainer';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -68,20 +69,25 @@ function Dashboard() {
       </nav>
 
       {page === 'terminal' && (
-        <div className="h-[calc(100vh-36px)] flex flex-col">
-          <Header />
-          <MarqueeTicker />
-          <div className="flex flex-1 min-h-0 overflow-y-auto">
-            {sidebarOpen && <Sidebar />}
-            <ChartPanel />
-            {showOrderBook && (
-              <div className="w-64 border-l border-border-primary bg-bg-secondary/30 shrink-0 hidden lg:block">
-                <OrderBook symbol={symbol} />
-              </div>
-            )}
-            {showSignalPanel && <div className="hidden lg:block"><SignalPanel /></div>}
+        <>
+          <div className="hidden lg:flex h-[calc(100vh-36px)] flex-col">
+            <Header />
+            <MarqueeTicker />
+            <div className="flex flex-1 min-h-0 overflow-y-auto">
+              {sidebarOpen && <Sidebar />}
+              <ChartPanel />
+              {showOrderBook && (
+                <div className="w-64 border-l border-border-primary bg-bg-secondary/30 shrink-0 hidden lg:block">
+                  <OrderBook symbol={symbol} />
+                </div>
+              )}
+              {showSignalPanel && <div className="hidden lg:block"><SignalPanel /></div>}
+            </div>
           </div>
-        </div>
+          <div className="lg:hidden">
+            <MobileTerminal />
+          </div>
+        </>
       )}
 
       {page === 'paper' && (
