@@ -550,7 +550,9 @@ export class PaperTradingService {
 
     const dailyPnl = {};
     for (const t of parsed) {
-      const day = t.closed_at?.split('T')[0] || t.closed_at?.split(' ')[0];
+      if (!t.closed_at) continue;
+      const d = typeof t.closed_at === 'string' ? t.closed_at : t.closed_at instanceof Date ? t.closed_at.toISOString() : String(t.closed_at);
+      const day = d.split('T')[0] || d.split(' ')[0];
       if (day) dailyPnl[day] = (dailyPnl[day] || 0) + t.pnl;
     }
 
