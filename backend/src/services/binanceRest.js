@@ -1,6 +1,11 @@
-const BASE_URL = 'https://api.binance.com';
+const BASE_URLS = [
+  'https://api.binance.com',
+  'https://api2.binance.com',
+  'https://api3.binance.com',
+];
+const TIMEOUT_MS = 4000;
 const cache = new Map();
-const CACHE_TTL = 5000; // 5 seconds
+const CACHE_TTL = 5000;
 
 function cachedFetch(url, ttl = CACHE_TTL) {
   const cached = cache.get(url);
@@ -12,7 +17,6 @@ function cachedFetch(url, ttl = CACHE_TTL) {
 
 function setCache(url, data) {
   cache.set(url, { data, time: Date.now() });
-  // Cleanup old entries
   if (cache.size > 200) {
     const oldest = [...cache.entries()].sort((a, b) => a[1].time - b[1].time);
     oldest.slice(0, 50).forEach(([key]) => cache.delete(key));
@@ -21,22 +25,38 @@ function setCache(url, data) {
 
 export class BinanceRestService {
   async fetchBinance(endpoint, params = {}, ttl = CACHE_TTL) {
-    const url = new URL(`${BASE_URL}${endpoint}`);
-    Object.entries(params).forEach(([k, v]) => {
-      if (v !== undefined && v !== null) url.searchParams.set(k, v);
-    });
+    const shuffled = [...BASE_URLS].sort(() => Math.random() - 0.5);
+    let lastErr;
 
-    const urlStr = url.toString();
-    const cached = cachedFetch(urlStr, ttl);
-    if (cached) return cached;
+    for (const base of shuffled) {
+      const url = new URL(`${base}${endpoint}`);
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) url.searchParams.set(k, v);
+      });
 
-    const res = await fetch(urlStr);
-    if (!res.ok) {
-      throw new Error(`Binance API error: ${res.status} ${res.statusText}`);
+      const urlStr = url.toString();
+      const cached = cachedFetch(urlStr, ttl);
+      if (cached) return cached;
+
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+        const res = await fetch(urlStr, { signal: controller.signal });
+        clearTimeout(timer);
+
+        if (!res.ok) {
+          lastErr = new Error(`Binance API error: ${res.status} ${res.statusText}`);
+          continue;
+        }
+        const data = await res.json();
+        setCache(urlStr, data);
+        return data;
+      } catch (err) {
+        lastErr = err;
+      }
     }
-    const data = await res.json();
-    setCache(urlStr, data);
-    return data;
+
+    throw lastErr || new Error('All Binance API endpoints failed');
   }
 
   async getExchangeInfo() {
