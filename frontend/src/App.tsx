@@ -71,7 +71,7 @@ function Dashboard() {
         <div className="h-[calc(100vh-36px)] flex flex-col">
           <Header />
           <MarqueeTicker />
-          <div className="flex flex-1 min-h-0 overflow-hidden">
+          <div className="flex flex-1 min-h-0 overflow-y-auto">
             {sidebarOpen && <Sidebar />}
             <ChartPanel />
             {showOrderBook && (
