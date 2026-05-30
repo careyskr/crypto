@@ -87,7 +87,7 @@ function Dashboard() {
       {page === 'paper' && (
         <>
           <Header />
-          <div className="flex flex-1 overflow-hidden"><PaperTrading /></div>
+          <div className="flex flex-1 overflow-y-auto"><PaperTrading /></div>
         </>
       )}
 
