@@ -226,7 +226,7 @@ function MarketList() {
 
 function MobileChartTab() {
   return (
-    <div className="h-[55vh] min-h-[320px] w-full bg-bg-primary">
+    <div className="h-[55vh] min-h-[320px] w-full bg-bg-primary flex flex-col overflow-hidden">
       <ChartPanel />
     </div>
   );
