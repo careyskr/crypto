@@ -24,7 +24,9 @@ dotenv.config();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const frontendDist = path.resolve(__dirname, '../../frontend/dist');
 
-async function runMigrations() {
+const app = express();
+
+const migration = (async () => {
   try {
     const schemaPath = path.resolve(__dirname, '../schema.sql');
     if (fs.existsSync(schemaPath)) {
@@ -35,11 +37,9 @@ async function runMigrations() {
   } catch (err) {
     console.warn('Schema migration skipped:', err.message);
   }
-}
-runMigrations();
+})();
 
-const app = express();
-
+app.use((req, res, next) => migration.then(() => next()).catch(next));
 app.use(cors());
 app.use(express.json());
 
@@ -48,6 +48,15 @@ if (fs.existsSync(frontendDist)) {
 }
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: Date.now() }));
+
+app.get('/api/dbcheck', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT NOW() AS time, current_database() AS db');
+    res.json({ connected: true, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ connected: false, error: err.message });
+  }
+});
 
 app.use('/api/auth', authRouter);
 app.use('/api/user', userRouter);
