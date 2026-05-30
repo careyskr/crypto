@@ -743,7 +743,7 @@ function PositionCard({ trade, onClose, onModify, onPartialClose }: {
   const isLong = trade.side === 'long';
   const pnl = trade.unrealized_pnl ?? 0;
   const pnlPct = trade.unrealized_pnl_percent ?? 0;
-  const qty = parseFloat(trade.quantity) || 0;
+  const qty = Number(trade.quantity) || 0;
   const marginVal = trade.margin ?? 0;
   const pnlColor = pnl >= 0 ? 'text-accent-green' : 'text-accent-red';
   const bgGradient = isLong ? 'gradient-green' : 'gradient-red';
@@ -966,7 +966,7 @@ function OrderCard({ order, onCancel, onModify }: {
   const isLong = order.side === 'long';
   const isLimit = order.type === 'limit';
   const triggerLabel = isLimit ? (isLong ? 'Price ≤' : 'Price ≥') : (isLong ? 'Price ≥' : 'Price ≤');
-  const oqty = parseFloat(order.quantity as any) || 0;
+  const oqty = Number(order.quantity) || 0;
 
   return (
     <div className="glass p-3 relative overflow-hidden border border-border-primary/40">
