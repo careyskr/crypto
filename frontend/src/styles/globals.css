@@ -110,3 +110,29 @@
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+
+/* Touch-friendly minimum tap target */
+.touch-target {
+  min-height: 36px;
+  min-width: 36px;
+}
+
+/* Hide scrollbar but keep scroll functionality */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Mobile responsive utils */
+@media (max-width: 767px) {
+  .mobile-hidden { display: none !important; }
+  .mobile-full-width { width: 100% !important; }
+}
+
+/* Tablet responsive utils */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .tablet-sidebar-hidden { display: none !important; }
+}

@@ -36,7 +36,7 @@ function Dashboard() {
 
   return (
     <div className="bg-bg-primary text-text-primary min-h-screen">
-      <nav className="h-9 sticky top-0 z-40 flex items-center px-3 border-b border-border-primary bg-bg-secondary/80 backdrop-blur-xl gap-1">
+      <nav className="h-9 sticky top-0 z-40 flex items-center px-3 border-b border-border-primary bg-bg-secondary/80 backdrop-blur-xl gap-1 overflow-x-auto scrollbar-none whitespace-nowrap">
         {([
           { id: 'terminal', label: 'Terminal', icon: '◈' },
           { id: 'paper', label: 'Paper Trading', icon: '📊' },
