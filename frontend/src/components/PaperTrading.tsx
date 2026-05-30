@@ -743,7 +743,7 @@ function PositionCard({ trade, onClose, onModify, onPartialClose }: {
   const isLong = trade.side === 'long';
   const pnl = trade.unrealized_pnl ?? 0;
   const pnlPct = trade.unrealized_pnl_percent ?? 0;
-  const qty = trade.quantity ?? 0;
+  const qty = parseFloat(trade.quantity) || 0;
   const marginVal = trade.margin ?? 0;
   const pnlColor = pnl >= 0 ? 'text-accent-green' : 'text-accent-red';
   const bgGradient = isLong ? 'gradient-green' : 'gradient-red';
@@ -966,6 +966,7 @@ function OrderCard({ order, onCancel, onModify }: {
   const isLong = order.side === 'long';
   const isLimit = order.type === 'limit';
   const triggerLabel = isLimit ? (isLong ? 'Price ≤' : 'Price ≥') : (isLong ? 'Price ≥' : 'Price ≤');
+  const oqty = parseFloat(order.quantity as any) || 0;
 
   return (
     <div className="glass p-3 relative overflow-hidden border border-border-primary/40">
@@ -1009,7 +1010,7 @@ function OrderCard({ order, onCancel, onModify }: {
       <div className="grid grid-cols-3 gap-3 mb-2.5 text-[10px]">
         <div>
           <div className="text-text-muted mb-0.5">Size</div>
-          <div className="font-mono text-text-primary">{order.quantity.toFixed(4)}</div>
+          <div className="font-mono text-text-primary">{oqty.toFixed(4)}</div>
         </div>
         <div>
           <div className="text-text-muted mb-0.5">Margin</div>
@@ -1211,7 +1212,9 @@ function TradeHistory({ trades }: { trades: any[] }) {
       )}
       <div className="space-y-1 max-h-[400px] overflow-y-auto">
         {filtered.map((t: any) => {
-          const isWin = t.pnl >= 0;
+          const pnl = parseFloat(t.pnl) || 0;
+          const pnlPct = parseFloat(t.pnl_percent) || 0;
+          const isWin = pnl >= 0;
           const duration = t.closed_at && t.opened_at ? (() => {
             const ms = new Date(t.closed_at).getTime() - new Date(t.opened_at).getTime();
             const h = Math.floor(ms / 3600000);
@@ -1231,9 +1234,9 @@ function TradeHistory({ trades }: { trades: any[] }) {
                 <span className="text-[10px] text-text-muted">{duration}</span>
                 <div>
                   <div className={`text-xs font-mono font-bold ${isWin ? 'text-accent-green' : 'text-accent-red'}`}>
-                    {isWin ? '+' : ''}${t.pnl?.toFixed(2)}
+                    {isWin ? '+' : ''}${pnl.toFixed(2)}
                   </div>
-                  <div className="text-[10px] text-text-muted">{formatPercent(t.pnl_percent || 0)}</div>
+                  <div className="text-[10px] text-text-muted">{formatPercent(pnlPct)}</div>
                 </div>
               </div>
             </div>
