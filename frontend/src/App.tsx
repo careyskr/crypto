@@ -34,7 +34,7 @@ function Dashboard() {
   useEffect(() => { localStorage.setItem('showSignalPanel', String(showSignalPanel)); }, [showSignalPanel]);
 
   return (
-    <div className="h-screen flex flex-col bg-bg-primary text-text-primary overflow-y-auto">
+    <div className="h-screen flex flex-col bg-bg-primary text-text-primary overflow-hidden">
       <nav className="h-9 flex items-center px-3 border-b border-border-primary bg-bg-secondary/80 backdrop-blur-xl shrink-0 gap-1">
         {([
           { id: 'terminal', label: 'Terminal', icon: '◈' },
