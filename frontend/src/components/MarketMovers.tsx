@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useAppStore } from '../stores/useAppStore';
 import { useSocket } from '../hooks/useSocket';
 import { formatPrice, formatPercent, formatVolume, getBaseAsset } from '../utils/format';
+import { getTickers } from '../utils/binanceApi';
 import type { Ticker } from '../types';
 
 type FilterTab = 'all' | 'gainers' | 'losers' | 'favorites';
@@ -19,9 +20,7 @@ export function MarketMovers() {
     let mounted = true;
     const load = async () => {
       try {
-        const res = await fetch(`/api/exchanges/tickers?exchange=${exchange}`);
-        if (!res.ok) { setError('Failed to fetch'); if (mounted) setLoading(false); return; }
-        const data: Ticker[] = await res.json();
+        const data: Ticker[] = await getTickers();
         if (!mounted) return;
         setTickers(data);
         data.forEach((t) => tickerMapRef.current.set(t.symbol, t));

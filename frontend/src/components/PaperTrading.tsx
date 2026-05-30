@@ -3,6 +3,7 @@ import { createChart, IChartApi, ISeriesApi, Time, ColorType } from 'lightweight
 import { useAppStore } from '../stores/useAppStore';
 import { formatPrice, formatPercent, formatVolume, formatSymbol, getBaseAsset } from '../utils/format';
 import { usePaperPositions, LivePosition, PendingOrder } from '../hooks/usePaperPositions';
+import { getTicker, getKlines, searchSymbols } from '../utils/binanceApi';
 import { MarketMovers } from './MarketMovers';
 
 const API = '/api/paper';
@@ -214,12 +215,9 @@ function OrderEntry({ symbol, onTrade, stats, positions, setConfirmTrade }: any)
   // Auto-fill current market price
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/binance/ticker/${symbol}`)
-      .then(r => r.json())
-      .then(d => {
-        if (!cancelled && d?.lastPrice) setPrice(d.lastPrice.toString());
-      })
-      .catch(() => {});
+    getTicker(symbol).then(d => {
+      if (!cancelled && d?.lastPrice) setPrice(d.lastPrice.toString());
+    }).catch(() => {});
     return () => { cancelled = true; };
   }, [symbol]);
 
@@ -256,11 +254,8 @@ function OrderEntry({ symbol, onTrade, stats, positions, setConfirmTrade }: any)
     searchTimer.current = setTimeout(async () => {
       setSearchLoading(true);
       try {
-        const res = await fetch(`/api/binance/search?q=${encodeURIComponent(pairSearch)}&limit=20`);
-        if (res.ok) {
-          const data = await res.json();
-          setSearchResults(data.map((s: any) => s.symbol || s));
-        }
+        const data = await searchSymbols(pairSearch);
+        setSearchResults(data.map((s: any) => s.symbol || s));
       } catch {}
       setSearchLoading(false);
     }, 200);
@@ -304,10 +299,8 @@ function OrderEntry({ symbol, onTrade, stats, positions, setConfirmTrade }: any)
 
     if (orderType === 'market') {
       try {
-        // Fetch live market price — ignore whatever the user typed
-        const tickerRes = await fetch(`/api/binance/ticker/${symbol}`);
-        const ticker = await tickerRes.json();
-        const livePrice = parseFloat(ticker?.lastPrice);
+        const ticker = await getTicker(symbol);
+        const livePrice = ticker?.lastPrice;
         if (!livePrice || livePrice <= 0) { setError('Could not fetch live price'); return; }
 
         const q = parseFloat(qty);
@@ -671,9 +664,7 @@ function PaperChart({ symbol }: { symbol: string }) {
     let active = true;
     const loadKlines = async () => {
       try {
-        const res = await fetch(`/api/binance/klines?symbol=${symbol}&interval=${timeframe}&limit=200`);
-        if (!res.ok) return;
-        const raw: any[] = await res.json();
+        const raw = await getKlines(symbol, timeframe, 200);
         if (!active) return;
         const data = raw.map((k: any) => ({
           time: k.time as Time,
@@ -1098,8 +1089,7 @@ function MiniOrderBook({ symbol }: { symbol: string }) {
     let active = true;
     const fetchTicker = async () => {
       try {
-        const res = await fetch(`/api/binance/ticker/${symbol}`);
-        if (res.ok && active) setTicker(await res.json());
+        if (active) setTicker(await getTicker(symbol));
       } catch {}
     };
     fetchTicker();

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { formatPrice, formatPercent } from '../utils/format';
+import { getTickers } from '../utils/binanceApi';
 import type { Ticker } from '../types';
 
 const TOP_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT'];
@@ -12,12 +13,9 @@ export default function MarketOverview() {
     let active = true;
     const fetchTickers = async () => {
       try {
-        const res = await fetch('/api/binance/tickers');
-        if (!res.ok) return;
-        const all: Ticker[] = await res.json();
+        const all = await getTickers();
         if (!active) return;
-        const top = all.filter(t => TOP_SYMBOLS.includes(t.symbol));
-        setTickers(top);
+        setTickers(all.filter(t => TOP_SYMBOLS.includes(t.symbol)));
       } catch {}
     };
     fetchTickers();
@@ -25,9 +23,7 @@ export default function MarketOverview() {
 
     const fetchMoving = async () => {
       try {
-        const res = await fetch('/api/binance/tickers');
-        if (!res.ok) return;
-        const all: Ticker[] = await res.json();
+        const all = await getTickers();
         if (!active) return;
         const usdt = all.filter(t => t.symbol.endsWith('USDT')).sort((a, b) => Math.abs(b.priceChangePercent) - Math.abs(a.priceChangePercent)).slice(0, 20);
         setMovingTickers(usdt);
