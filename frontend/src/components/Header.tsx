@@ -24,7 +24,7 @@ export function Header() {
   const navigate = useNavigate();
 
   return (
-    <header className="h-14 flex items-center px-4 border-b border-border-primary bg-bg-secondary/80 backdrop-blur-xl shrink-0">
+    <header className="min-h-14 flex items-center flex-wrap gap-y-1 px-2 sm:px-4 border-b border-border-primary bg-bg-secondary/80 backdrop-blur-xl shrink-0">
       {/* Logo */}
       <div className="flex items-center gap-3 mr-6">
         <button onClick={toggleSidebar} className="text-text-secondary hover:text-text-primary transition-colors p-1">
@@ -44,7 +44,7 @@ export function Header() {
       </div>
 
       {/* Exchange Selector */}
-      <div className="flex items-center bg-bg-primary rounded-lg p-0.5 mr-3">
+      <div className="hidden sm:flex items-center bg-bg-primary rounded-lg p-0.5 mr-3">
         {EXCHANGES.map((ex) => (
           <button
             key={ex.id}

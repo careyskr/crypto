@@ -79,7 +79,7 @@ function Dashboard() {
                 <OrderBook symbol={symbol} />
               </div>
             )}
-            {showSignalPanel && <SignalPanel />}
+            {showSignalPanel && <div className="hidden lg:block"><SignalPanel /></div>}
           </div>
         </div>
       )}
