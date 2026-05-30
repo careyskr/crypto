@@ -48,10 +48,11 @@ export function PaperTrading() {
   );
 
   const acc = stats?.account;
+  const balance = acc ? parseFloat(acc.balance) : 0;
   const unrealizedPnl = positions.reduce((sum: number, p: LivePosition) => sum + (p.unrealized_pnl || 0), 0);
-  const equity = acc ? +(acc.balance + unrealizedPnl).toFixed(2) : 0;
+  const equity = +(balance + unrealizedPnl).toFixed(2);
   const usedMargin = positions.reduce((sum: number, p: LivePosition) => sum + (p.margin || 0), 0);
-  const freeBalance = acc ? Math.max(0, +(acc.balance - usedMargin).toFixed(2)) : 0;
+  const freeBalance = Math.max(0, +(balance - usedMargin).toFixed(2));
 
   return (
     <div className="flex-1 flex overflow-hidden">
