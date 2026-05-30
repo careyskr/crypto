@@ -114,25 +114,48 @@ export class BinanceRestService {
     const id = SYMBOL_MAP[symbol];
     if (!id) throw new Error(`Unsupported symbol: ${symbol}`);
 
-    const days = { '1m': 1, '5m': 1, '15m': 1, '30m': 2, '1h': 7, '4h': 30, '1d': 90, '1w': 365 };
-    const d = days[interval] || 7;
+    // CoinGecko market_chart returns price+volume data points:
+    //   days=1  → ~288 points (5m granularity)
+    //   days=7  → ~168 points (hourly)
+    //   days=30 → ~720 points (hourly)
+    //   days=90 → ~2160 points (hourly)
+    // We construct OHLC candles by bucketing these data points.
 
-    const data = await fetchWithTimeout(
-      `${COINGECKO_BASE}/coins/${id}/ohlc?vs_currency=usd&days=${d}`,
-      8000
+    const daysMap = { '1m': 1, '5m': 1, '15m': 1, '30m': 1, '1h': 10, '4h': 30, '1d': 90, '1w': 365 };
+    const d = daysMap[interval] || 7;
+
+    const chart = await fetchWithTimeout(
+      `${COINGECKO_BASE}/coins/${id}/market_chart?vs_currency=usd&days=${d}`, 10000
     );
+    if (!chart || !chart.prices) throw new Error(`No market_chart data for ${symbol}`);
 
-    return (data || []).map(k => ({
-      time: k[0] / 1000,
-      open: k[1],
-      high: k[2],
-      low: k[3],
-      close: k[4],
-      volume: 0,
-      closeTime: k[0] / 1000,
-      quoteVolume: 0,
-      trades: 0,
-    }));
+    const bucketMs = { '1m': 60000, '5m': 300000, '15m': 900000, '30m': 1800000, '1h': 3600000, '4h': 14400000, '1d': 86400000, '1w': 604800000 };
+    const bm = bucketMs[interval] || 3600000;
+
+    const volumes = (chart.total_volumes || []).reduce((m, [t, v]) => {
+      const bucket = Math.floor(t / bm) * bm;
+      m.set(bucket, (m.get(bucket) || 0) + v);
+      return m;
+    }, new Map());
+
+    const buckets = {};
+    for (const [ts, price] of chart.prices) {
+      const bucket = Math.floor(ts / bm) * bm;
+      if (!buckets[bucket]) {
+        buckets[bucket] = { time: bucket / 1000, open: price, high: price, low: price, close: price, volume: 0 };
+      } else {
+        buckets[bucket].high = Math.max(buckets[bucket].high, price);
+        buckets[bucket].low = Math.min(buckets[bucket].low, price);
+        buckets[bucket].close = price;
+      }
+    }
+
+    for (const [bucket, vol] of volumes) {
+      if (buckets[bucket]) buckets[bucket].volume = vol;
+    }
+
+    let result = Object.values(buckets).sort((a, b) => a.time - b.time);
+    return result.slice(-Math.min(limit, result.length));
   }
 
   async get24hTickers() {
