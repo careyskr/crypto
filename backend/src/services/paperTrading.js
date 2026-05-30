@@ -1,5 +1,13 @@
 import db from '../db/database.js';
 
+const CG_IDS = {
+  'BTCUSDT': 'bitcoin', 'ETHUSDT': 'ethereum', 'BNBUSDT': 'binancecoin',
+  'SOLUSDT': 'solana', 'XRPUSDT': 'ripple', 'ADAUSDT': 'cardano',
+  'DOGEUSDT': 'dogecoin', 'AVAXUSDT': 'avalanche-2', 'DOTUSDT': 'polkadot',
+  'LINKUSDT': 'chainlink', 'MATICUSDT': 'matic-network', 'UNIUSDT': 'uniswap',
+};
+function getCoinGeckoId(symbol) { return CG_IDS[symbol] || 'bitcoin'; }
+
 function calcPnL(trade, currentPrice, includeFees = true) {
   const diff = trade.side === 'long'
     ? (currentPrice - trade.entry_price)
@@ -173,12 +181,11 @@ export class PaperTradingService {
 
       if (raw === undefined || raw === null) {
         try {
-          const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${order.symbol}`);
+          const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${getCoinGeckoId(order.symbol)}&vs_currencies=usd`, { signal: AbortSignal.timeout(3000) });
           if (res.ok) {
             const p = await res.json();
-            if (p.symbol && p.price) {
-              raw = parseFloat(p.price);
-            }
+            const id = getCoinGeckoId(order.symbol);
+            if (p[id]?.usd) raw = p[id].usd;
           }
         } catch {}
         if (!raw) continue;

@@ -333,7 +333,7 @@ function OrderEntry({ symbol, onTrade, stats, positions, setConfirmTrade }: any)
       const tradeData = {
         symbol,
         side: isBuy ? 'long' : 'short',
-        entryPrice: parseFloat(price),
+        entryPrice: parseFloat(orderType === 'stop' ? stopPrice : price),
         quantity: parseFloat(qty),
         leverage,
         stopLoss: sl ? parseFloat(sl) : null,
