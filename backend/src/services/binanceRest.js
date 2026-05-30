@@ -1,71 +1,12 @@
 const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
 
-const SYMBOL_MAP = {
-  'BTCUSDT': 'bitcoin',
-  'ETHUSDT': 'ethereum',
-  'BNBUSDT': 'binancecoin',
-  'SOLUSDT': 'solana',
-  'XRPUSDT': 'ripple',
-  'ADAUSDT': 'cardano',
-  'DOGEUSDT': 'dogecoin',
-  'AVAXUSDT': 'avalanche-2',
-  'DOTUSDT': 'polkadot',
-  'LINKUSDT': 'chainlink',
-  'MATICUSDT': 'matic-network',
-  'UNIUSDT': 'uniswap',
-  'SHIBUSDT': 'shiba-inu',
-  'LTCUSDT': 'litecoin',
-  'ATOMUSDT': 'cosmos',
-  'ETCUSDT': 'ethereum-classic',
-  'XLMUSDT': 'stellar',
-  'BCHUSDT': 'bitcoin-cash',
-  'ALGOUSDT': 'algorand',
-  'VETUSDT': 'vechain',
-  'FILUSDT': 'filecoin',
-  'TRXUSDT': 'tron',
-  'APTUSDT': 'aptos',
-  'ARBUSDT': 'arbitrum',
-  'OPUSDT': 'optimism',
-  'SUIUSDT': 'sui',
-  'PEPEUSDT': 'pepe',
-  'INJUSDT': 'injective-protocol',
-  'TIAUSDT': 'celestia',
-  'SEIUSDT': 'sei-network',
-  'NEARUSDT': 'near',
-  'SANDUSDT': 'the-sandbox',
-  'MANAUSDT': 'decentraland',
-  'AAVEUSDT': 'aave',
-  'MKRUSDT': 'maker',
-  'CRVUSDT': 'curve-dao-token',
-  'COMPUSDT': 'compound-governance-token',
-  'AXSUSDT': 'axie-infinity',
-  'EGLDUSDT': 'elrond-erd-2',
-  'FTMUSDT': 'fantom',
-  'RUNEUSDT': 'thorchain',
-  'KAVAUSDT': 'kava',
-  'QTUMUSDT': 'qtum',
-  'ZECUSDT': 'zcash',
-  'DASHUSDT': 'dash',
-  'XMRUSDT': 'monero',
-  'HBARUSDT': 'hedera-hashgraph',
-  'ICPUSDT': 'internet-computer',
-  'FETUSDT': 'fetch-ai',
-  'GRTUSDT': 'the-graph',
-};
-
 const INTERVAL_MAP = {
-  '1m': '1',
-  '5m': '5',
-  '15m': '15',
-  '30m': '30',
-  '1h': '60',
-  '4h': '240',
-  '1d': '1',
-  '1w': '7',
+  '1m': '1', '5m': '5', '15m': '15', '30m': '30',
+  '1h': '60', '4h': '240', '1d': '1', '1w': '7',
 };
 
 const cache = new Map();
-const CACHE_TTL = 60000; // 60s to avoid CoinGecko rate limit (free tier ~30 req/min)
+const CACHE_TTL = 60000;
 
 function cachedFetch(url, ttl = CACHE_TTL) {
   const cached = cache.get(url);
@@ -98,28 +39,51 @@ async function fetchWithTimeout(url, timeoutMs = 5000) {
   }
 }
 
+// Dynamic coin list from CoinGecko, cached 60s
+async function fetchCoinList() {
+  const data = await fetchWithTimeout(
+    `${COINGECKO_BASE}/coins/markets?vs_currency=usd&order=volume_desc&per_page=250&page=1&sparkline=false`,
+    10000
+  );
+  if (!Array.isArray(data)) return [];
+  return data;
+}
+
+function buildSymbolMap(coins) {
+  const map = {};
+  const exchangeInfo = [];
+  for (const c of coins) {
+    const sym = (c.symbol || '').toUpperCase() + 'USDT';
+    if (!map[sym]) {
+      map[sym] = c.id;
+      exchangeInfo.push({
+        symbol: sym,
+        baseAsset: (c.symbol || '').toUpperCase(),
+        quoteAsset: 'USDT',
+        pricePrecision: 2,
+        quantityPrecision: 5,
+      });
+    }
+  }
+  return { idMap: map, exchangeInfo };
+}
+
 export class BinanceRestService {
   async fetchBinance(endpoint, params = {}) {
     throw new Error('Direct Binance API unavailable from this region; using alternative data source');
   }
 
   async getExchangeInfo() {
-    return Object.entries(SYMBOL_MAP).map(([symbol, id]) => ({
-      symbol, baseAsset: symbol.replace('USDT', ''), quoteAsset: 'USDT',
-      pricePrecision: 2, quantityPrecision: 5,
-    }));
+    const coins = await fetchCoinList();
+    const { exchangeInfo } = buildSymbolMap(coins);
+    return exchangeInfo;
   }
 
   async getKlines(symbol = 'BTCUSDT', interval = '1h', limit = 500) {
-    const id = SYMBOL_MAP[symbol];
+    const coins = await fetchCoinList();
+    const { idMap } = buildSymbolMap(coins);
+    const id = idMap[symbol];
     if (!id) throw new Error(`Unsupported symbol: ${symbol}`);
-
-    // CoinGecko market_chart returns price+volume data points:
-    //   days=1  → ~288 points (5m granularity)
-    //   days=7  → ~168 points (hourly)
-    //   days=30 → ~720 points (hourly)
-    //   days=90 → ~2160 points (hourly)
-    // We construct OHLC candles by bucketing these data points.
 
     const daysMap = { '1m': 1, '5m': 1, '15m': 1, '30m': 1, '1h': 10, '4h': 30, '1d': 90, '1w': 365 };
     const d = daysMap[interval] || 7;
@@ -159,27 +123,23 @@ export class BinanceRestService {
   }
 
   async get24hTickers() {
-    const data = await fetchWithTimeout(
-      `${COINGECKO_BASE}/coins/markets?vs_currency=usd&order=volume_desc&per_page=100&page=1&sparkline=false`,
-      10000
-    );
+    const coins = await fetchCoinList();
+    const { idMap } = buildSymbolMap(coins);
 
-    const reverseMap = {};
-    for (const [sym, id] of Object.entries(SYMBOL_MAP)) {
-      reverseMap[id] = sym;
-    }
-
-    return (data || []).filter(c => reverseMap[c.id]).map(c => ({
-      symbol: reverseMap[c.id],
-      priceChange: c.price_change_24h || 0,
-      priceChangePercent: c.price_change_percentage_24h || 0,
-      lastPrice: c.current_price || 0,
-      volume: c.total_volume || 0,
-      quoteVolume: (c.total_volume || 0) * (c.current_price || 0),
-      highPrice: c.high_24h || 0,
-      lowPrice: c.low_24h || 0,
-      count: 0,
-    }));
+    return (coins || []).map(c => {
+      const sym = (c.symbol || '').toUpperCase() + 'USDT';
+      return {
+        symbol: sym,
+        priceChange: c.price_change_24h || 0,
+        priceChangePercent: c.price_change_percentage_24h || 0,
+        lastPrice: c.current_price || 0,
+        volume: c.total_volume || 0,
+        quoteVolume: (c.total_volume || 0) * (c.current_price || 0),
+        highPrice: c.high_24h || 0,
+        lowPrice: c.low_24h || 0,
+        count: 0,
+      };
+    });
   }
 
   async get24hTicker(symbol) {
@@ -190,9 +150,10 @@ export class BinanceRestService {
   async searchSymbols(query) {
     if (!query || query.length < 1) return [];
     const q = query.toUpperCase();
-    return Object.keys(SYMBOL_MAP)
-      .filter(s => s.includes(q) || s.replace('USDT', '').includes(q))
-      .slice(0, 20)
-      .map(s => ({ symbol: s, baseAsset: s.replace('USDT', ''), quoteAsset: 'USDT', pricePrecision: 2, quantityPrecision: 5 }));
+    const coins = await fetchCoinList();
+    const { exchangeInfo } = buildSymbolMap(coins);
+    return exchangeInfo
+      .filter(s => s.symbol.includes(q) || s.baseAsset.includes(q))
+      .slice(0, 20);
   }
 }
