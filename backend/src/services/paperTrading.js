@@ -9,13 +9,14 @@ const CG_IDS = {
 function getCoinGeckoId(symbol) { return CG_IDS[symbol] || 'bitcoin'; }
 
 function calcPnL(trade, currentPrice, includeFees = true) {
-  const diff = trade.side === 'long'
-    ? (currentPrice - trade.entry_price)
-    : (trade.entry_price - currentPrice);
-  const grossPnl = diff * trade.quantity * trade.leverage;
+  const entry = parseFloat(trade.entry_price);
+  const qty = parseFloat(trade.quantity);
+  const lev = parseFloat(trade.leverage);
+  const diff = trade.side === 'long' ? (currentPrice - entry) : (entry - currentPrice);
+  const grossPnl = diff * qty * lev;
   if (!includeFees) return grossPnl;
-  const exitFee = currentPrice * trade.quantity * 0.001;
-  return grossPnl - trade.fee - exitFee;
+  const exitFee = currentPrice * qty * 0.001;
+  return grossPnl - parseFloat(trade.fee || 0) - exitFee;
 }
 
 function calcPnLPercent(trade, currentPrice, includeFees = false) {
@@ -225,14 +226,20 @@ export class PaperTradingService {
     const trade = await db.getTrade(tradeId);
     if (!trade || trade.status !== 'open') throw new Error('Trade not found or already closed');
 
+    const qty = parseFloat(trade.quantity);
+    const lev = parseFloat(trade.leverage);
+    const entry = parseFloat(trade.entry_price);
+    const fee = parseFloat(trade.fee || 0);
     const grossPnl = +calcPnL(trade, exitPrice, false).toFixed(2);
-    const exitFee = +(exitPrice * trade.quantity * 0.001).toFixed(2);
+    const exitFee = +(exitPrice * qty * 0.001).toFixed(2);
     const netPnl = +(grossPnl - exitFee).toFixed(2);
-    const totalFees = +(trade.fee + exitFee).toFixed(2);
-    const margin = (trade.entry_price * trade.quantity) / trade.leverage;
+    const totalFees = +(fee + exitFee).toFixed(2);
+    const margin = (entry * qty) / lev;
     const pnlPercent = margin > 0 ? +((netPnl / margin) * 100).toFixed(2) : 0;
     const isWin = netPnl > 0;
     const account = await db.getAccount();
+    const bal = parseFloat(account.balance);
+    const totalPnl = parseFloat(account.total_pnl || 0);
 
     await db.updateTrade(tradeId, {
       exit_price: exitPrice, pnl: netPnl, pnl_percent: pnlPercent,
@@ -241,8 +248,8 @@ export class PaperTradingService {
     });
 
     await db.updateAccount({
-      balance: +((account.balance + margin + netPnl).toFixed(2)),
-      total_pnl: +((account.total_pnl + netPnl).toFixed(2)),
+      balance: +((bal + margin + netPnl).toFixed(2)),
+      total_pnl: +((totalPnl + netPnl).toFixed(2)),
       win_count: account.win_count + (isWin ? 1 : 0),
       loss_count: account.loss_count + (isWin ? 0 : 1),
     });
@@ -525,23 +532,24 @@ export class PaperTradingService {
   async getStats() {
     const account = await db.getAccount();
     const trades = await db.getClosedTrades(1000);
-    const wins = trades.filter(t => t.pnl > 0);
-    const losses = trades.filter(t => t.pnl <= 0);
-    const totalPnl = trades.reduce((s, t) => s + t.pnl, 0);
+    const parsed = trades.map(t => ({ ...t, pnl: parseFloat(t.pnl || 0) }));
+    const wins = parsed.filter(t => t.pnl > 0);
+    const losses = parsed.filter(t => t.pnl <= 0);
+    const totalPnl = parsed.reduce((s, t) => s + t.pnl, 0);
     const avgWin = wins.length > 0 ? wins.reduce((s, t) => s + t.pnl, 0) / wins.length : 0;
     const avgLoss = losses.length > 0 ? Math.abs(losses.reduce((s, t) => s + t.pnl, 0) / losses.length) : 0;
-    const bestTrade = trades.length > 0 ? trades.reduce((a, b) => a.pnl > b.pnl ? a : b) : null;
-    const worstTrade = trades.length > 0 ? trades.reduce((a, b) => a.pnl < b.pnl ? a : b) : null;
+    const bestTrade = parsed.length > 0 ? parsed.reduce((a, b) => a.pnl > b.pnl ? a : b) : null;
+    const worstTrade = parsed.length > 0 ? parsed.reduce((a, b) => a.pnl < b.pnl ? a : b) : null;
 
-    let runningBalance = account.initial_balance;
+    let runningBalance = parseFloat(account.initial_balance);
     const equityCurve = [{ time: 0, value: runningBalance }];
-    for (const t of trades) {
+    for (const t of parsed) {
       runningBalance += t.pnl;
       equityCurve.push({ time: new Date(t.closed_at).getTime(), value: +runningBalance.toFixed(2) });
     }
 
     const dailyPnl = {};
-    for (const t of trades) {
+    for (const t of parsed) {
       const day = t.closed_at?.split('T')[0] || t.closed_at?.split(' ')[0];
       if (day) dailyPnl[day] = (dailyPnl[day] || 0) + t.pnl;
     }

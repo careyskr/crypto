@@ -94,9 +94,9 @@ export function getDailyRiskSummary(trades, balance) {
     return tradeDay === today;
   });
 
-  const todayPnl = todayTrades.reduce((s, t) => s + (t.pnl || 0), 0);
+  const todayPnl = todayTrades.reduce((s, t) => s + parseFloat(t.pnl || 0), 0);
   const todayRisk = todayTrades.reduce((s, t) => {
-    const risk = Math.abs(t.entry_price - (t.stop_loss || t.entry_price)) * t.quantity;
+    const risk = Math.abs(parseFloat(t.entry_price) - parseFloat(t.stop_loss || t.entry_price)) * parseFloat(t.quantity);
     return s + risk;
   }, 0);
 
