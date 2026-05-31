@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useAppStore } from '../stores/useAppStore';
 import { getTicker as getBinanceTicker, getTickers } from '../utils/binanceApi';
 import { formatPrice, formatPercent, formatVolume, formatSymbol, getBaseAsset } from '../utils/format';
@@ -55,8 +55,28 @@ function MobileHeader({ symbol, onMenu }: { symbol: string; onMenu: () => void }
   );
 }
 
+/* ─── Slide Drawer with finger-following ─── */
+const DRAWER_WIDTH = 280;
+const EDGE_HIT_WIDTH = 20;
+
 function SlideDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { page, setPage, toggleFavorite, isFavorite, favorites, setSymbol, symbol } = useAppStore();
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const dragX = useRef(0);
+  const startX = useRef(0);
+  const dragging = useRef(false);
+  const animFrame = useRef<number>(0);
+  const [translateX, setTranslateX] = useState(open ? 0 : -DRAWER_WIDTH);
+  const [isOpen, setIsOpen] = useState(open);
+  const [transition, setTransition] = useState('transform 0.3s ease-out');
+
+  useEffect(() => {
+    setIsOpen(open);
+    setTransition('transform 0.3s ease-out');
+    setTranslateX(open ? 0 : -DRAWER_WIDTH);
+  }, [open]);
+
   const pages: { id: typeof page; label: string; icon: string }[] = [
     { id: 'terminal', label: 'Terminal', icon: '◈' },
     { id: 'paper', label: 'Paper Trading', icon: '📊' },
@@ -66,14 +86,60 @@ function SlideDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
     { id: 'risk', label: 'Risk Manager', icon: '⚙' },
   ];
 
+  const handleTouchStart = (clientX: number) => {
+    if (!open) return;
+    startX.current = clientX;
+    dragX.current = translateX;
+    dragging.current = true;
+    setTransition('none');
+  };
+
+  const handleTouchMove = (clientX: number) => {
+    if (!dragging.current) return;
+    const dx = clientX - startX.current;
+    let newX = dragX.current + dx;
+    if (newX > 0) newX = newX * 0.3;
+    if (newX < -DRAWER_WIDTH) newX = -DRAWER_WIDTH + (newX + DRAWER_WIDTH) * 0.3;
+    cancelAnimationFrame(animFrame.current);
+    animFrame.current = requestAnimationFrame(() => setTranslateX(newX));
+  };
+
+  const handleTouchEnd = () => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    setTransition('transform 0.3s ease-out');
+    if (translateX > -DRAWER_WIDTH * 0.35) {
+      setTranslateX(0);
+      setIsOpen(true);
+    } else {
+      setTranslateX(-DRAWER_WIDTH);
+      setIsOpen(false);
+      if (open) setTimeout(onClose, 300);
+    }
+  };
+
+  const closeDrawer = () => {
+    setTransition('transform 0.3s ease-out');
+    setTranslateX(-DRAWER_WIDTH);
+    setIsOpen(false);
+    setTimeout(onClose, 300);
+  };
+
   return (
     <>
-      {open && <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />}
-      <div className={`fixed top-0 left-0 bottom-0 z-50 w-[280px] bg-bg-secondary transform transition-transform duration-300 ease-out ${open ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div ref={overlayRef}
+        className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${open && isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        onClick={closeDrawer} />
+      <div ref={drawerRef}
+        onTouchStart={e => handleTouchStart(e.touches[0].clientX)}
+        onTouchMove={e => handleTouchMove(e.touches[0].clientX)}
+        onTouchEnd={handleTouchEnd}
+        className="fixed top-0 left-0 bottom-0 z-50 bg-bg-secondary shadow-2xl"
+        style={{ width: DRAWER_WIDTH, transform: `translateX(${translateX}px)`, transition }}>
         <div className="flex flex-col h-full">
           <div className="flex items-center justify-between px-4 h-12 border-b border-border-primary">
             <span className="text-sm font-bold text-text-primary">CryptoSignal Pro</span>
-            <button onClick={onClose} className="p-1.5 rounded-lg active:bg-bg-tertiary/50">
+            <button onClick={closeDrawer} className="p-1.5 rounded-lg active:bg-bg-tertiary/50">
               <svg className="w-5 h-5 text-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
           </div>
@@ -107,45 +173,99 @@ function SlideDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
   );
 }
 
+/* ─── Bottom Sheet with finger-following ─── */
 function BottomSheet({ open, onClose, children, height = '65vh' }: { open: boolean; onClose: () => void; children: React.ReactNode; height?: string }) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const startY = useRef(0);
+  const dragging = useRef(false);
+  const animFrame = useRef<number>(0);
+  const [translateY, setTranslateY] = useState(0);
+  const [transition, setTransition] = useState('transform 0.3s ease-out');
 
   useEffect(() => {
-    if (open) document.body.style.overflow = 'hidden';
-    else document.body.style.overflow = '';
+    if (open) {
+      setTransition('transform 0.3s ease-out');
+      setTranslateY(0);
+      document.body.style.overflow = 'hidden';
+    } else {
+      setTransition('transform 0.3s ease-out');
+      setTranslateY(2000);
+      document.body.style.overflow = '';
+    }
     return () => { document.body.style.overflow = ''; };
   }, [open]);
 
-  const onTouchStart = (e: React.TouchEvent) => { startY.current = e.touches[0].clientY; };
-  const onTouchMove = (e: React.TouchEvent) => {
-    const dy = e.touches[0].clientY - startY.current;
-    if (dy > 0 && sheetRef.current) {
-      const progress = Math.min(dy / 200, 1);
-      sheetRef.current.style.transform = `translateY(${progress * 100}%)`;
-    }
+  const handleTouchStart = (clientY: number) => {
+    startY.current = clientY;
+    dragging.current = true;
+    setTransition('none');
   };
-  const onTouchEnd = (e: React.TouchEvent) => {
-    if (sheetRef.current) {
-      const dy = e.changedTouches[0].clientY - startY.current;
-      sheetRef.current.style.transform = '';
-      if (dy > 80) onClose();
+
+  const handleTouchMove = (clientY: number) => {
+    if (!dragging.current) return;
+    const dy = clientY - startY.current;
+    const newY = dy < 0 ? dy * 0.3 : dy;
+    cancelAnimationFrame(animFrame.current);
+    animFrame.current = requestAnimationFrame(() => setTranslateY(newY));
+  };
+
+  const handleTouchEnd = () => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    setTransition('transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)');
+    const el = sheetRef.current;
+    if (el) {
+      const h = el.getBoundingClientRect().height;
+      if (translateY > h * 0.3) {
+        setTranslateY(h);
+        setTimeout(onClose, 300);
+      } else {
+        setTranslateY(0);
+      }
+    } else {
+      setTranslateY(0);
     }
   };
 
   return (
     <>
-      {open && <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-300" onClick={onClose} />}
+      <div className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        onClick={onClose} />
       <div ref={sheetRef}
-        className={`fixed bottom-0 left-0 right-0 z-50 bg-bg-secondary rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out ${open ? 'translate-y-0' : 'translate-y-full'}`}
-        style={{ height }}>
-        <div className="flex items-center justify-center pt-2 pb-1" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+        className="fixed bottom-0 left-0 right-0 z-50 bg-bg-secondary rounded-t-2xl shadow-2xl"
+        style={{ height, transform: `translateY(${translateY}px)`, transition }}>
+        <div className="flex items-center justify-center pt-2 pb-1 cursor-grab active:cursor-grabbing"
+          onTouchStart={e => handleTouchStart(e.touches[0].clientY)}
+          onTouchMove={e => handleTouchMove(e.touches[0].clientY)}
+          onTouchEnd={handleTouchEnd}>
           <div className="w-10 h-1 rounded-full bg-text-muted/30" />
         </div>
         <div className="h-[calc(100%-20px)] overflow-y-auto overscroll-contain">{children}</div>
       </div>
     </>
   );
+}
+
+/* ─── Left-edge swipe handler ─── */
+function EdgeSwipeHandler({ onSwipe }: { onSwipe: () => void }) {
+  const startX = useRef(0);
+  const dragging = useRef(false);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (e.touches[0].clientX < EDGE_HIT_WIDTH) {
+      startX.current = e.touches[0].clientX;
+      dragging.current = true;
+    }
+  };
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (!dragging.current) return;
+    const dx = e.touches[0].clientX - startX.current;
+    if (dx > 50) { onSwipe(); dragging.current = false; }
+  };
+  const onTouchEnd = () => { dragging.current = false; };
+
+  return <div className="fixed left-0 top-0 bottom-0 z-30" style={{ width: EDGE_HIT_WIDTH }}
+    onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} />;
 }
 
 function MarketList() {
@@ -248,6 +368,7 @@ export function MobileTerminal() {
 
   return (
     <div className="flex flex-col h-screen bg-bg-primary overflow-x-hidden">
+      {!drawerOpen && <EdgeSwipeHandler onSwipe={() => setDrawerOpen(true)} />}
       <MobileHeader symbol={symbol} onMenu={() => setDrawerOpen(true)} />
       <div className="flex-1 overflow-hidden relative">
         {tab === 'market' && <MarketList />}
